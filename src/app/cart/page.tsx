@@ -24,6 +24,7 @@ export default function CartPage() {
     itemCount,
     subtotal,
     discountAmount,
+    couponNotice,
     deliveryFee,
     totalAmount,
     deliveryType,
@@ -236,11 +237,20 @@ export default function CartPage() {
                 Promo / Gift Coupon
               </label>
 
+              {couponNotice && (
+                <p className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-800 dark:text-amber-300">
+                  {couponNotice}
+                </p>
+              )}
+
               {coupon ? (
                 <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-lg flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-medium">
                     <Tag className="w-4 h-4" />
-                    <span><strong>{coupon.code}</strong> (-{formatPrice(discountAmount)})</span>
+                    <span>
+                      <strong>{coupon.code}</strong>{' '}
+                      {discountAmount > 0 ? `(-${formatPrice(discountAmount)})` : '(not applied yet)'}
+                    </span>
                   </div>
                   <button onClick={removeCoupon} className="text-neutral-400 hover:text-red-600 underline">
                     Remove

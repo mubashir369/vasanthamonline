@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
-import crypto from 'crypto';
 import connectDB from '@/lib/db';
 import Order from '@/lib/models/Order';
 import ProductVariant from '@/lib/models/ProductVariant';
@@ -8,7 +7,10 @@ import Product from '@/lib/models/Product';
 import Coupon from '@/lib/models/Coupon';
 import StoreSettings from '@/lib/models/StoreSettings';
 import { getUserFromRequest } from '@/lib/auth';
-import { generateOrderNumber, generateTrackingCode, calculateDeliveryFee } from '@/lib/utils.server';
+import { generateOrderNumber, generateTrackingCode } from '@/lib/utils.server';
+import { priceCart } from '@/lib/pricing.server';
+import { getRazorpay, isValidPaymentSignature, toPaise } from '@/lib/razorpay.server';
+import { isValidVerificationToken, normalizeTarget } from '@/lib/otp';
 
 export async function POST(req: NextRequest) {
   try {
@@ -35,93 +37,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ success: false, error: 'Cart is empty' }, { status: 400 });
+    if (!['COD', 'ONLINE'].includes(paymentMethod)) {
+      return NextResponse.json({ success: false, error: 'Invalid payment method' }, { status: 400 });
     }
 
-    // Settings for delivery calculations
-    const settings = (await StoreSettings.findOne()) || {
-      baseCourierCharge: 80,
-      freeDeliveryMinAmount: 1999,
-    };
-
-    // 1. Validate variants & stock
-    const validatedItems: any[] = [];
-    let subtotal = 0;
-
-    for (const item of items) {
-      const variant = await ProductVariant.findById(item.variantId);
-      if (!variant) {
-        return NextResponse.json(
-          { success: false, error: `Product variant not found` },
-          { status: 404 }
-        );
-      }
-
-      if (variant.stockQuantity < item.quantity) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Insufficient stock for ${variant.color} (${variant.size}). Only ${variant.stockQuantity} remaining.`,
-          },
-          { status: 400 }
-        );
-      }
-
-      const product = await Product.findById(variant.productId);
-      const unitPrice = variant.salePrice || variant.price;
-      const itemTotal = unitPrice * item.quantity;
-      subtotal += itemTotal;
-
-      validatedItems.push({
-        productId: variant.productId,
-        variantId: variant._id,
-        title: product?.title || 'Heritage Textile Item',
-        sku: variant.sku,
-        size: variant.size,
-        color: variant.color,
-        price: unitPrice,
-        quantity: item.quantity,
-        image: variant.images?.[0] || product?.images?.[0] || '',
-      });
+    const verifiedPhone = normalizeTarget('WHATSAPP', customerInfo.phone);
+    if (!verifiedPhone) {
+      return NextResponse.json(
+        { success: false, error: 'Please enter a valid 10-digit WhatsApp number' },
+        { status: 400 }
+      );
     }
 
-    // 2. Validate coupon if present
-    let discountAmount = 0;
-    if (couponCode) {
-      const coupon = await Coupon.findOne({
-        code: couponCode.toUpperCase().trim(),
-        isActive: true,
-      });
-
-      if (coupon && (!coupon.endDate || new Date(coupon.endDate) >= new Date())) {
-        if (subtotal >= (coupon.minOrderValue || 0)) {
-          if (coupon.discountType === 'percentage') {
-            discountAmount = Math.round((subtotal * coupon.discountValue) / 100);
-            if (coupon.maxDiscountAmount && discountAmount > coupon.maxDiscountAmount) {
-              discountAmount = coupon.maxDiscountAmount;
-            }
-          } else {
-            discountAmount = coupon.discountValue;
-          }
-          if (discountAmount > subtotal) discountAmount = subtotal;
-
-          // Increment coupon used count
-          coupon.usedCount = (coupon.usedCount || 0) + 1;
-          await coupon.save();
-        }
-      }
+    // Every checkout must verify the customer's WhatsApp number by OTP.
+    // For online payments that was checked in /api/razorpay/create-order, before the
+    // customer paid, and the verified number is tied to the Razorpay order (checked below).
+    if (
+      paymentMethod === 'COD' &&
+      !isValidVerificationToken(body.checkoutToken, 'WHATSAPP', verifiedPhone, 'CHECKOUT_VERIFY')
+    ) {
+      return NextResponse.json(
+        { success: false, error: 'Please verify your WhatsApp number with the OTP before placing the order.' },
+        { status: 403 }
+      );
     }
 
-    // 3. Calculate delivery fee
-    const deliveryFee = calculateDeliveryFee(
-      deliveryType || 'HOME_DELIVERY',
-      subtotal - discountAmount,
-      settings.baseCourierCharge,
-      settings.freeDeliveryMinAmount
-    );
-
-    const totalAmount = subtotal - discountAmount + deliveryFee;
+    // 1-3. Price the cart on the server (stock, coupon, delivery)
+    const pricing = await priceCart({ items, couponCode, deliveryType });
+    if (!pricing.ok) {
+      return NextResponse.json({ success: false, error: pricing.error }, { status: pricing.status });
+    }
+    const { subtotal, discountAmount, deliveryFee, totalAmount } = pricing;
 
     // 4. Verify Online Payment if applicable
     let finalPaymentStatus: 'PENDING' | 'PAID' = 'PENDING';
@@ -139,40 +85,81 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const secret = process.env.RAZORPAY_KEY_SECRET;
-      if (!secret) {
-        return NextResponse.json(
-          { success: false, error: 'Server Razorpay configuration error.' },
-          { status: 500 }
-        );
-      }
-
-      const expectedSignature = crypto
-        .createHmac('sha256', secret)
-        .update(`${razorpayOrderId}|${razorpayPaymentId}`)
-        .digest('hex');
-
-      if (expectedSignature !== razorpaySignature) {
+      if (!isValidPaymentSignature(String(razorpayOrderId), String(razorpayPaymentId), razorpaySignature)) {
         return NextResponse.json(
           { success: false, error: 'Razorpay payment signature verification failed.' },
           { status: 400 }
         );
       }
 
+      // A payment can only ever pay for one order.
+      if (await Order.exists({ $or: [{ razorpayPaymentId }, { razorpayOrderId }] })) {
+        return NextResponse.json(
+          { success: false, error: 'This payment has already been used for an order.' },
+          { status: 409 }
+        );
+      }
+
+      const razorpay = getRazorpay();
+      if (!razorpay) {
+        return NextResponse.json({ success: false, error: 'Server Razorpay configuration error.' }, { status: 500 });
+      }
+
+      // Ask Razorpay what was actually paid, rather than trusting the browser.
+      const fetched = await Promise.all([
+        razorpay.payments.fetch(String(razorpayPaymentId)),
+        razorpay.orders.fetch(String(razorpayOrderId)),
+      ]).catch((err) => {
+        console.error('[orders] Could not fetch Razorpay payment/order', razorpayPaymentId, err);
+        return null;
+      });
+      if (!fetched) {
+        return NextResponse.json(
+          { success: false, error: 'We could not confirm this payment with Razorpay. Please contact support.' },
+          { status: 400 }
+        );
+      }
+      const [payment, rzpOrder] = fetched;
+      const paidCorrectAmount =
+        payment.order_id === razorpayOrderId &&
+        ['captured', 'authorized'].includes(payment.status) &&
+        Number(payment.amount) === toPaise(totalAmount) &&
+        Number(rzpOrder.amount) === toPaise(totalAmount);
+
+      if (!paidCorrectAmount) {
+        console.error('[orders] Razorpay amount/status mismatch', {
+          razorpayOrderId,
+          razorpayPaymentId,
+          paymentStatus: payment.status,
+          paid: payment.amount,
+          expected: toPaise(totalAmount),
+        });
+        return NextResponse.json(
+          {
+            success: false,
+            error: `The payment doesn't match your order total. Please contact support with payment ID ${razorpayPaymentId}.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      if (rzpOrder.notes?.phone !== verifiedPhone) {
+        return NextResponse.json(
+          { success: false, error: 'This payment was made for a different WhatsApp number.' },
+          { status: 403 }
+        );
+      }
+
       finalPaymentStatus = 'PAID';
       finalOrderStatus = 'CONFIRMED';
       paymentHistoryNote = `Payment verified via Razorpay (Payment ID: ${razorpayPaymentId}). Order confirmed.`;
-    } else if (paymentMethod === 'DEMO_TEST') {
-      finalPaymentStatus = 'PAID';
-      finalOrderStatus = 'CONFIRMED';
-      paymentHistoryNote = 'Test payment simulated successfully. Order confirmed.';
     }
 
     const orderNumber = generateOrderNumber();
     const trackingCode = generateTrackingCode();
 
     // 5. Decrement stock
-    for (const item of validatedItems) {
+    for (const item of pricing.items) {
       await ProductVariant.findByIdAndUpdate(item.variantId, {
         $inc: { stockQuantity: -item.quantity },
       });
@@ -185,7 +172,7 @@ export async function POST(req: NextRequest) {
       userId: user ? user.userId : undefined,
       customerInfo: {
         name: customerInfo.name.trim(),
-        email: customerInfo.email?.trim() || 'customer@vasantham.com',
+        email: customerInfo.email?.trim() || 'customer@vasanthamonline.com',
         phone: customerInfo.phone.trim(),
       },
       shippingAddress:
@@ -210,13 +197,13 @@ export async function POST(req: NextRequest) {
               pincode: shippingAddress?.pincode || '678001',
             },
       deliveryType: deliveryType || 'HOME_DELIVERY',
-      items: validatedItems,
+      items: pricing.items,
       subtotal,
       discountAmount,
-      couponCode: discountAmount > 0 ? couponCode.toUpperCase() : undefined,
+      couponCode: pricing.coupon && discountAmount > 0 ? pricing.coupon.code : undefined,
       deliveryFee,
       totalAmount,
-      paymentMethod: paymentMethod || 'COD',
+      paymentMethod,
       paymentStatus: finalPaymentStatus,
       razorpayOrderId: razorpayOrderId || undefined,
       razorpayPaymentId: razorpayPaymentId || undefined,
@@ -230,6 +217,10 @@ export async function POST(req: NextRequest) {
         },
       ],
     });
+
+    if (pricing.coupon && discountAmount > 0) {
+      await Coupon.updateOne({ _id: pricing.coupon._id }, { $inc: { usedCount: 1 } });
+    }
 
     return NextResponse.json({ success: true, order }, { status: 201 });
   } catch (error: any) {

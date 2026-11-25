@@ -17,11 +17,11 @@ import ImageUploader from '@/components/admin/ImageUploader';
 
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState({
-    storeName: 'Vasantham Group',
+    storeName: 'Vasantham Online',
     tagline: 'Where elegance is woven with tradition.',
     address: 'OPP. MY G Future, Main road Mannarkkad, PALAKKAD, Kerala - 678582',
     contactPhone: '+91 73061 60066',
-    contactEmail: 'info@vasanthamgroup.com',
+    contactEmail: 'info@vasanthamonline.com',
     logoUrl: '/logo.png',
     instagramUrl: 'https://www.instagram.com/vasanthamonline?cplk=MWZqM21vdTVsZWk0aA==',
     primaryColor: '#7E121D',

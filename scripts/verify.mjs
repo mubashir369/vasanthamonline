@@ -13,7 +13,7 @@ async function test(name, fn) {
 }
 
 async function run() {
-  console.log('=== Vasantham Group E-Commerce Platform Verification ===\n');
+  console.log('=== Vasantham Online E-Commerce Platform Verification ===\n');
 
   let testVariantId = '';
   let placedOrderNumber = '';
@@ -26,7 +26,7 @@ async function run() {
     const res = await fetch(`${BASE_URL}/`);
     if (res.status !== 200) throw new Error(`Expected 200, got ${res.status}`);
     const text = await res.text();
-    if (!text.includes('Vasantham Group')) throw new Error('Missing "Vasantham Group" in HTML');
+    if (!text.includes('Vasantham Online')) throw new Error('Missing "Vasantham Online" in HTML');
     if (!text.includes('Mannarkkad')) throw new Error('Missing "Mannarkkad" in HTML');
   });
 

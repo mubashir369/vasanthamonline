@@ -65,7 +65,7 @@ export default function AccountOrdersPage() {
             My Orders ({orders.length})
           </h1>
           <p className="text-xs text-neutral-500 mt-1">
-            Track and view receipts for your Vasantham Group purchases
+            Track and view receipts for your Vasantham Online purchases
           </p>
         </div>
 

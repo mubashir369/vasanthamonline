@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import Order from '@/lib/models/Order';
+import { getUserFromRequest } from '@/lib/auth';
+import { canViewFullOrder, fullOrderView, hasTrackingCode, publicOrderView } from '@/lib/orderAccess';
 
 export async function GET(req: NextRequest) {
   try {
@@ -22,7 +24,7 @@ export async function GET(req: NextRequest) {
         { orderNumber: query },
         { trackingCode: query },
       ],
-    }).select('-userId');
+    });
 
     if (!order) {
       return NextResponse.json(
@@ -31,7 +33,12 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, order });
+    // The secret tracking code shows full details (address etc.). An order number alone
+    // only shows status and items, unless it's the signed-in owner or an admin.
+    const full = hasTrackingCode(order, query) || canViewFullOrder(order, getUserFromRequest(req));
+    const view = full ? fullOrderView(order) : publicOrderView(order);
+    if (full) delete (view as any).userId;
+    return NextResponse.json({ success: true, order: view });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

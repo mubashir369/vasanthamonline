@@ -31,9 +31,15 @@ export async function GET(req: NextRequest) {
       Order.find().sort({ createdAt: -1 }).limit(6).lean(),
     ]);
 
-    const totalOrders = orders.length;
-    const paidOrders = orders.filter((o) => o.paymentStatus === 'PAID');
-    const totalRevenue = paidOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+    // Sales = every order that wasn't cancelled. "Collected" is what has actually been paid
+    // (online payments, and cash on delivery once delivered); the rest is awaiting payment.
+    const sum = (list: any[]) => list.reduce((total, o) => total + (o.totalAmount || 0), 0);
+    const activeOrders = orders.filter((o) => o.orderStatus !== 'CANCELLED');
+    const totalOrders = activeOrders.length;
+    const totalRevenue = sum(activeOrders);
+    const collectedRevenue = sum(activeOrders.filter((o) => o.paymentStatus === 'PAID'));
+    const awaitingPayment = sum(activeOrders.filter((o) => o.paymentStatus === 'PENDING'));
+    const refundsDue = orders.filter((o) => o.paymentStatus === 'REFUND_DUE').length;
     const pendingOrdersCount = orders.filter((o) => o.orderStatus === 'PENDING').length;
     const processingOrdersCount = orders.filter((o) => o.orderStatus === 'PROCESSING' || o.orderStatus === 'CONFIRMED').length;
     const shippedOrdersCount = orders.filter((o) => o.orderStatus === 'SHIPPED').length;
@@ -53,7 +59,11 @@ export async function GET(req: NextRequest) {
       metrics: {
         totalOrders,
         totalRevenue,
-        averageOrderValue: paidOrders.length > 0 ? Math.round(totalRevenue / paidOrders.length) : 0,
+        collectedRevenue,
+        awaitingPayment,
+        refundsDue,
+        cancelledOrders: orders.length - activeOrders.length,
+        averageOrderValue: totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0,
         totalProducts,
         totalCustomers,
         pendingOrdersCount,

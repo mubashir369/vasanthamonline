@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import Coupon from '@/lib/models/Coupon';
+import { computeCouponDiscount } from '@/lib/couponRules';
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,28 +41,20 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    let discountAmount = 0;
-    if (coupon.discountType === 'percentage') {
-      discountAmount = Math.round((subtotal * coupon.discountValue) / 100);
-      if (coupon.maxDiscountAmount && discountAmount > coupon.maxDiscountAmount) {
-        discountAmount = coupon.maxDiscountAmount;
-      }
-    } else {
-      discountAmount = coupon.discountValue;
-    }
+    const rules = {
+      discountType: coupon.discountType,
+      discountValue: coupon.discountValue,
+      minOrderValue: coupon.minOrderValue || 0,
+      maxDiscountAmount: coupon.maxDiscountAmount || undefined,
+    };
 
-    // Ensure discount doesn't exceed subtotal
-    if (discountAmount > subtotal) {
-      discountAmount = subtotal;
-    }
-
+    // The cart keeps these rules and recalculates the discount whenever the bag changes.
     return NextResponse.json({
       success: true,
       coupon: {
         code: coupon.code,
-        discountType: coupon.discountType,
-        discountValue: coupon.discountValue,
-        discountAmount,
+        ...rules,
+        discountAmount: computeCouponDiscount(rules, Number(subtotal) || 0),
       },
     });
   } catch (error: any) {

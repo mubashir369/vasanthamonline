@@ -6,12 +6,21 @@ import { CartProvider } from '@/lib/context/CartContext';
 import { WishlistProvider } from '@/lib/context/WishlistContext';
 import StoreLayoutWrapper from '@/components/layout/StoreLayoutWrapper';
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://vasanthamonline.com';
+
 export const metadata: Metadata = {
-  title: 'Vasantham Group | Where elegance is woven with tradition | Mannarkkad, Palakkad',
+  metadataBase: new URL(siteUrl),
+  openGraph: {
+    type: 'website',
+    siteName: 'Vasantham Online',
+    title: 'Vasantham Online | Where elegance is woven with tradition',
+    locale: 'en_IN',
+  },
+  title: 'Vasantham Online | Where elegance is woven with tradition | Mannarkkad, Palakkad',
   description:
     'Malabar’s premier textile and fashion network. Explore authentic Kanchipuram silk sarees, Kerala Kasavu drapes, festive kurtas, and family wear in Mannarkkad, Palakkad.',
   keywords: [
-    'Vasantham Group',
+    'Vasantham Online',
     'Mannarkkad textile shop',
     'Palakkad silk sarees',
     'Kerala Kasavu sarees',

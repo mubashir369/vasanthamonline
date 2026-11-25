@@ -84,7 +84,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       >
         <div className="p-6 space-y-6">
           <div className="flex items-center justify-between">
-            <BrandLogo storeName="Vasantham Group" />
+            <BrandLogo storeName="Vasantham Online" />
             <button
               onClick={() => setSidebarOpen(false)}
               className="md:hidden text-neutral-400 p-1"

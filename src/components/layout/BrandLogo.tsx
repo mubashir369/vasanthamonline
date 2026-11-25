@@ -9,7 +9,7 @@ interface BrandLogoProps {
 }
 
 export default function BrandLogo({
-  storeName = 'Vasantham Group',
+  storeName = 'Vasantham Online',
   tagline = 'Where elegance is woven with tradition.',
   className = '',
   logoUrl = '/logo.png',

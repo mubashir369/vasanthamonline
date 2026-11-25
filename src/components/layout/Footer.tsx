@@ -7,15 +7,15 @@ import { MapPin, Phone, Mail, Clock, ShieldCheck, Heart, Instagram, MessageCircl
 
 export default function Footer() {
   const [settings, setSettings] = useState({
-    storeName: 'Vasantham Group',
+    storeName: 'Vasantham Online',
     tagline: 'Where elegance is woven with tradition.',
     address: 'OPP. MY G Future, Main road Mannarkkad, PALAKKAD, Kerala - 678582',
     contactPhone: '+91 73061 60066',
-    contactEmail: 'info@vasanthamgroup.com',
+    contactEmail: 'info@vasanthamonline.com',
     logoUrl: '/logo.png',
     instagramUrl: 'https://www.instagram.com/vasanthamonline?cplk=MWZqM21vdTVsZWk0aA==',
     aboutText:
-      'Welcome to Vasantham Group — Malabar’s largest textile and fashion network, where tradition meets modern elegance. For generations, Vasantham has been a trusted name in the world of textiles in Palakkad.',
+      'Welcome to Vasantham Online — Malabar’s largest textile and fashion network, where tradition meets modern elegance. For generations, Vasantham has been a trusted name in the world of textiles in Palakkad.',
   });
 
   useEffect(() => {
@@ -212,8 +212,8 @@ export default function Footer() {
             </div>
             <div className="flex items-center gap-2.5 text-xs text-neutral-400">
               <Mail className="w-4 h-4 text-gold-400 flex-shrink-0" />
-              <a href={`mailto:${settings.contactEmail || 'info@vasanthamgroup.com'}`} className="hover:text-gold-300">
-                {settings.contactEmail || 'info@vasanthamgroup.com'}
+              <a href={`mailto:${settings.contactEmail || 'info@vasanthamonline.com'}`} className="hover:text-gold-300">
+                {settings.contactEmail || 'info@vasanthamonline.com'}
               </a>
             </div>
             <div className="flex items-center gap-2.5 text-xs text-neutral-400">

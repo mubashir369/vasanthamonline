@@ -1,119 +1,51 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/context/AuthContext';
 import BrandLogo from '@/components/layout/BrandLogo';
-import { Lock, Mail, User, Phone, ArrowRight, MessageCircle, CheckCircle2 } from 'lucide-react';
+import OtpVerifier from '@/components/auth/OtpVerifier';
+import { Lock, Mail, User, ArrowRight, MessageCircle, CheckCircle2 } from 'lucide-react';
+
+const inputClass =
+  'w-full pl-10 pr-3.5 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-crimson-600 disabled:opacity-70';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register, sendOtp, verifyOtp } = useAuth();
+  const { register, setSignedInUser } = useAuth();
 
-  // Email registration state
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [emailToken, setEmailToken] = useState('');
+  const [phoneToken, setPhoneToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // WhatsApp quick register state
+  // WhatsApp quick register
   const [whatsappMode, setWhatsappMode] = useState(false);
   const [waPhone, setWaPhone] = useState('');
-  const [waOtpSent, setWaOtpSent] = useState(false);
-  const [waOtp, setWaOtp] = useState(['', '', '', '']);
-  const [waLoading, setWaLoading] = useState(false);
-  const [waError, setWaError] = useState('');
-  const [waSuccess, setWaSuccess] = useState('');
-  const [resendTimer, setResendTimer] = useState(0);
-  const otpRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
 
-  // Resend countdown
-  useEffect(() => {
-    if (resendTimer <= 0) return;
-    const interval = setInterval(() => {
-      setResendTimer((prev) => prev - 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [resendTimer]);
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
+  const phoneValid = /^[6-9]\d{9}$/.test(phone);
+  const canSubmit = name.trim() && emailToken && phoneToken && password.length >= 6 && !loading;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!emailToken || !phoneToken) {
+      setError('Please verify both your email and WhatsApp number first.');
+      return;
+    }
     setLoading(true);
     setError('');
-
-    const res = await register(name, email, password, phone);
+    const res = await register({ name, email, password, phone, emailToken, phoneToken });
     setLoading(false);
-
     if (res.success) {
       router.push('/account/orders');
     } else {
       setError(res.error || 'Registration failed');
-    }
-  };
-
-  const handleSendWhatsAppOtp = async () => {
-    if (!waPhone.trim()) {
-      setWaError('Please enter your phone number');
-      return;
-    }
-    setWaLoading(true);
-    setWaError('');
-    setWaSuccess('');
-
-    const res = await sendOtp(waPhone, 'LOGIN');
-    setWaLoading(false);
-
-    if (res.success) {
-      setWaOtpSent(true);
-      setWaSuccess('OTP sent to your WhatsApp!');
-      setResendTimer(60);
-      setTimeout(() => otpRefs[0].current?.focus(), 100);
-    } else {
-      setWaError(res.error || 'Failed to send OTP');
-    }
-  };
-
-  const handleVerifyWhatsAppOtp = async () => {
-    const otpString = waOtp.join('');
-    if (otpString.length !== 4) {
-      setWaError('Please enter the complete 4-digit OTP');
-      return;
-    }
-    setWaLoading(true);
-    setWaError('');
-    setWaSuccess('');
-
-    const res = await verifyOtp(waPhone, otpString, 'LOGIN');
-    setWaLoading(false);
-
-    if (res.success) {
-      router.push('/account/orders');
-    } else {
-      setWaError(res.error || 'Invalid OTP');
-    }
-  };
-
-  const handleOtpChange = (index: number, value: string) => {
-    if (value.length > 1) {
-      value = value.slice(-1);
-    }
-    if (value && !/^\d$/.test(value)) return;
-
-    const newOtp = [...waOtp];
-    newOtp[index] = value;
-    setWaOtp(newOtp);
-
-    if (value && index < 3) {
-      otpRefs[index + 1].current?.focus();
-    }
-  };
-
-  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && !waOtp[index] && index > 0) {
-      otpRefs[index - 1].current?.focus();
     }
   };
 
@@ -132,7 +64,6 @@ export default function RegisterPage() {
           </p>
         </div>
 
-        {/* Quick WhatsApp Register Toggle */}
         {!whatsappMode ? (
           <div className="space-y-4">
             <button
@@ -163,9 +94,7 @@ export default function RegisterPage() {
 
             <form onSubmit={handleSubmit} className="space-y-4 text-xs">
               <div>
-                <label className="block text-neutral-700 dark:text-neutral-300 font-semibold mb-1">
-                  Full Name *
-                </label>
+                <label className="block text-neutral-700 dark:text-neutral-300 font-semibold mb-1">Full Name *</label>
                 <div className="relative">
                   <User className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
                   <input
@@ -174,48 +103,73 @@ export default function RegisterPage() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g. Anjali Menon"
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-crimson-600"
+                    className={inputClass}
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-neutral-700 dark:text-neutral-300 font-semibold mb-1">
-                  Email Address *
-                </label>
+              <div className="space-y-2">
+                <label className="block text-neutral-700 dark:text-neutral-300 font-semibold">Email Address *</label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
                   <input
                     type="email"
                     required
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setEmailToken('');
+                    }}
                     placeholder="you@example.com"
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-crimson-600"
+                    className={inputClass}
                   />
                 </div>
+                <OtpVerifier
+                  key={`email-${email.trim().toLowerCase()}`}
+                  channel="EMAIL"
+                  target={email}
+                  purpose="REGISTER"
+                  disabled={!emailValid}
+                  sendLabel="Send code to email"
+                  verified={Boolean(emailToken)}
+                  onVerified={({ verificationToken }) => setEmailToken(verificationToken || '')}
+                />
               </div>
 
-              <div>
-                <label className="block text-neutral-700 dark:text-neutral-300 font-semibold mb-1">
-                  Phone Number
-                </label>
-                <div className="relative">
-                  <Phone className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
+              <div className="space-y-2">
+                <label className="block text-neutral-700 dark:text-neutral-300 font-semibold">WhatsApp Number *</label>
+                <div className="flex rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus-within:ring-1 focus-within:ring-crimson-600 overflow-hidden">
+                  <span className="flex items-center gap-1.5 pl-3.5 pr-2.5 bg-neutral-50 dark:bg-neutral-800/80 border-r border-neutral-200 dark:border-neutral-700 font-semibold text-neutral-700 dark:text-neutral-300">
+                    <MessageCircle className="w-4 h-4 text-green-600" />
+                    +91
+                  </span>
                   <input
                     type="tel"
+                    required
+                    inputMode="numeric"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="e.g. +91 98950 11223"
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-crimson-600"
+                    onChange={(e) => {
+                      setPhone(e.target.value.replace(/\D/g, '').slice(0, 10));
+                      setPhoneToken('');
+                    }}
+                    placeholder="98950 11223"
+                    className="w-full px-3.5 py-2.5 bg-transparent text-neutral-900 dark:text-neutral-100 focus:outline-none tracking-wider"
                   />
                 </div>
+                <OtpVerifier
+                  key={`phone-${phone}`}
+                  channel="WHATSAPP"
+                  target={phone}
+                  purpose="REGISTER"
+                  disabled={!phoneValid}
+                  sendLabel="Send code to WhatsApp"
+                  verified={Boolean(phoneToken)}
+                  onVerified={({ verificationToken }) => setPhoneToken(verificationToken || '')}
+                />
               </div>
 
               <div>
-                <label className="block text-neutral-700 dark:text-neutral-300 font-semibold mb-1">
-                  Create Password *
-                </label>
+                <label className="block text-neutral-700 dark:text-neutral-300 font-semibold mb-1">Create Password *</label>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
                   <input
@@ -225,124 +179,71 @@ export default function RegisterPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Minimum 6 characters"
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-crimson-600"
+                    autoComplete="new-password"
+                    className={inputClass}
                   />
                 </div>
               </div>
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={!canSubmit}
                 className="w-full py-3 bg-gradient-to-r from-crimson-800 to-crimson-900 hover:from-crimson-900 text-gold-300 font-bold rounded-lg text-xs uppercase tracking-wider shadow transition disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {loading ? 'Creating Account...' : 'Register'} <ArrowRight className="w-4 h-4" />
               </button>
+              {(!emailToken || !phoneToken) && (
+                <p className="text-center text-[11px] text-neutral-500">
+                  Verify your email and WhatsApp number to finish registering.
+                </p>
+              )}
             </form>
           </div>
         ) : (
-          /* WhatsApp Quick Register Flow */
-          <div className="space-y-4">
+          <div className="space-y-4 text-xs">
             <button
               type="button"
-              onClick={() => { setWhatsappMode(false); setWaOtpSent(false); setWaError(''); setWaSuccess(''); }}
-              className="text-xs text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 flex items-center gap-1"
+              onClick={() => setWhatsappMode(false)}
+              className="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 flex items-center gap-1"
             >
               ← Back to email registration
             </button>
 
-            {waError && (
-              <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-600 dark:text-red-400">
-                {waError}
+            <div>
+              <label className="block text-neutral-700 dark:text-neutral-300 font-semibold mb-1">WhatsApp Phone Number</label>
+              <div className="flex rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus-within:ring-1 focus-within:ring-green-500 overflow-hidden">
+                <span className="flex items-center px-3 bg-neutral-100 dark:bg-neutral-800 border-r border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 font-medium">
+                  +91
+                </span>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={waPhone}
+                  onChange={(e) => setWaPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="98950 11223"
+                  className="flex-1 px-3.5 py-2.5 bg-transparent text-neutral-900 dark:text-neutral-100 focus:outline-none tracking-wider"
+                />
               </div>
-            )}
-            {waSuccess && (
-              <div className="p-3 bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-lg text-xs text-green-600 dark:text-green-400">
-                {waSuccess}
-              </div>
-            )}
+            </div>
 
-            {!waOtpSent ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-neutral-700 dark:text-neutral-300 font-semibold mb-1 text-xs">
-                    WhatsApp Phone Number
-                  </label>
-                  <div className="flex gap-2">
-                    <div className="flex items-center px-3 bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs text-neutral-600 dark:text-neutral-400 font-medium">
-                      +91
-                    </div>
-                    <input
-                      type="tel"
-                      value={waPhone}
-                      onChange={(e) => setWaPhone(e.target.value)}
-                      placeholder="98950 11223"
-                      className="flex-1 px-3.5 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-green-500 text-xs"
-                    />
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSendWhatsAppOtp}
-                  disabled={waLoading}
-                  className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg text-xs uppercase tracking-wider shadow transition disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  {waLoading ? 'Sending...' : 'Send WhatsApp OTP'}
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <p className="text-xs text-neutral-600 dark:text-neutral-400 text-center">
-                  Enter the 4-digit OTP sent to your WhatsApp
-                </p>
-                <div className="flex justify-center gap-3">
-                  {waOtp.map((digit, i) => (
-                    <input
-                      key={i}
-                      ref={otpRefs[i]}
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={1}
-                      value={digit}
-                      onChange={(e) => handleOtpChange(i, e.target.value)}
-                      onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                      className="w-12 h-12 text-center text-lg font-bold rounded-lg border-2 border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
-                    />
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={handleVerifyWhatsAppOtp}
-                  disabled={waLoading}
-                  className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg text-xs uppercase tracking-wider shadow transition disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  {waLoading ? 'Verifying...' : 'Verify & Create Account'}
-                </button>
-
-                <div className="flex items-center justify-between text-xs">
-                  <button
-                    type="button"
-                    onClick={() => { setWaOtpSent(false); setWaOtp(['', '', '', '']); setWaError(''); }}
-                    className="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                  >
-                    Change Number
-                  </button>
-                  {resendTimer > 0 ? (
-                    <span className="text-neutral-400">Resend in {resendTimer}s</span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleSendWhatsAppOtp}
-                      disabled={waLoading}
-                      className="text-green-600 dark:text-green-400 font-semibold hover:underline"
-                    >
-                      Resend OTP
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
+            <OtpVerifier
+              key={`wa-${waPhone}`}
+              channel="WHATSAPP"
+              target={waPhone}
+              purpose="LOGIN"
+              block
+              disabled={!/^[6-9]\d{9}$/.test(waPhone)}
+              sendLabel="Send WhatsApp OTP"
+              verifyLabel="Verify & Create Account"
+              onVerified={({ user }) => {
+                if (user) setSignedInUser(user);
+                router.push('/account/orders');
+              }}
+            />
+            <p className="flex items-center gap-1.5 text-[11px] text-neutral-500">
+              <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
+              No password needed – you&apos;ll sign in with a WhatsApp code.
+            </p>
           </div>
         )}
 

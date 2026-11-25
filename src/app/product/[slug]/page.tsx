@@ -22,6 +22,20 @@ import {
   Share2,
 } from 'lucide-react';
 
+const FALLBACK_IMAGE =
+  'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1200&q=80';
+
+/**
+ * Photos to show for a variant: its own photos, else the photos of another size in the
+ * same colour (sizes usually share photos), else the product's general photos.
+ */
+function imagesForVariant(product: any, variant: any): string[] {
+  if (variant?.images?.length) return variant.images;
+  const sameColour = product?.variants?.find((v: any) => v.color === variant?.color && v.images?.length);
+  if (sameColour) return sameColour.images;
+  return product?.images?.length ? product.images : [FALLBACK_IMAGE];
+}
+
 export default function ProductDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -58,21 +72,11 @@ export default function ProductDetailPage() {
           setReviews(prod.reviews || []);
           setRelatedProducts(data.relatedProducts || []);
 
-          // Default selected variant & image
-          if (prod.variants && prod.variants.length > 0) {
-            const firstVariant = prod.variants[0];
-            setSelectedVariant(firstVariant);
-            const initialImg =
-              firstVariant.images?.[0] ||
-              prod.images?.[0] ||
-              'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1200&q=80';
-            setSelectedImage(initialImg);
-          } else {
-            const initialImg =
-              prod.images?.[0] ||
-              'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1200&q=80';
-            setSelectedImage(initialImg);
-          }
+          // Default selected variant (first one in stock) & its first photo
+          const firstVariant =
+            prod.variants?.find((v: any) => v.stockQuantity > 0) || prod.variants?.[0] || null;
+          setSelectedVariant(firstVariant);
+          setSelectedImage(imagesForVariant(prod, firstVariant)[0]);
         } else {
           setError(data.error || 'Product not found');
         }
@@ -82,12 +86,23 @@ export default function ProductDetailPage() {
   }, [slug]);
 
   const handleSelectVariant = (v: any) => {
+    if (!v) return;
+    const sameColour = v.color === selectedVariant?.color;
     setSelectedVariant(v);
-    if (v.images && v.images.length > 0) {
-      setSelectedImage(v.images[0]);
-    } else if (product?.images && product.images.length > 0) {
-      setSelectedImage(product.images[0]);
-    }
+    // A new colour always starts at its first photo. A size change within the same colour
+    // keeps the photo the customer is looking at, if that variant has it.
+    const images = imagesForVariant(product, v);
+    if (!sameColour || !images.includes(selectedImage)) setSelectedImage(images[0]);
+  };
+
+  // Picking a colour keeps the current size when that colour comes in it.
+  const handleSelectColour = (colour: string) => {
+    const ofColour = (product?.variants || []).filter((v: any) => v.color === colour);
+    handleSelectVariant(
+      ofColour.find((v: any) => v.size === selectedVariant?.size) ||
+        ofColour.find((v: any) => v.stockQuantity > 0) ||
+        ofColour[0]
+    );
   };
 
   if (loading) {
@@ -129,13 +144,15 @@ export default function ProductDetailPage() {
   const isOutOfStock = stock <= 0;
   const isFavorite = isInWishlist(product._id);
 
-  // Active gallery images - priority to selected variant's images
-  const activeImages =
-    selectedVariant?.images && selectedVariant.images.length > 0
-      ? selectedVariant.images
-      : product.images && product.images.length > 0
-      ? product.images
-      : [selectedImage];
+  // Gallery follows the selected variant (see imagesForVariant)
+  const activeImages = imagesForVariant(product, selectedVariant);
+
+  // One button per colour, and the sizes available in the selected colour
+  const colourOptions: any[] = [];
+  for (const v of product.variants || []) {
+    if (!colourOptions.some((c) => c.color === v.color)) colourOptions.push(v);
+  }
+  const sizeOptions = (product.variants || []).filter((v: any) => v.color === selectedVariant?.color);
 
   const handleAddToCart = () => {
     if (!selectedVariant || isOutOfStock) return;
@@ -328,13 +345,14 @@ export default function ProductDetailPage() {
                   Select Color / Pattern: <span className="font-normal text-crimson-700 dark:text-gold-400">{selectedVariant?.color}</span>
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {product.variants.map((v: any) => (
+                  {colourOptions.map((v: any) => (
                     <button
-                      key={v._id}
+                      key={v.color}
                       type="button"
-                      onClick={() => handleSelectVariant(v)}
+                      aria-pressed={selectedVariant?.color === v.color}
+                      onClick={() => handleSelectColour(v.color)}
                       className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-2 transition ${
-                        selectedVariant?._id === v._id
+                        selectedVariant?.color === v.color
                           ? 'border-crimson-700 dark:border-gold-400 bg-crimson-50 dark:bg-neutral-800 text-crimson-900 dark:text-gold-300 shadow-sm'
                           : 'border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-neutral-400'
                       }`}
@@ -355,16 +373,18 @@ export default function ProductDetailPage() {
                   Size / Length: <span className="font-normal text-crimson-700 dark:text-gold-400">{selectedVariant?.size}</span>
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {product.variants.map((v: any) => (
+                  {sizeOptions.map((v: any) => (
                     <button
                       key={`size-${v._id}`}
                       type="button"
+                      aria-pressed={selectedVariant?._id === v._id}
                       onClick={() => handleSelectVariant(v)}
+                      title={v.stockQuantity > 0 ? undefined : 'Out of stock'}
                       className={`px-4 py-2 rounded-lg border text-xs font-bold transition ${
                         selectedVariant?._id === v._id
                           ? 'bg-neutral-900 dark:bg-gold-500 text-white dark:text-neutral-950 border-neutral-900 dark:border-gold-500'
                           : 'border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-neutral-400'
-                      }`}
+                      } ${v.stockQuantity > 0 ? '' : 'line-through opacity-50'}`}
                     >
                       {v.size}
                     </button>

@@ -20,13 +20,13 @@ async function getAboutData() {
   const settings = await StoreSettings.findOne().lean();
   return {
     settings: settings || {
-      storeName: 'Vasantham Group',
+      storeName: 'Vasantham Online',
       tagline: 'Where elegance is woven with tradition.',
       address: 'OPP. MY G Future, Main road Mannarkkad, PALAKKAD, Kerala - 678582',
       contactPhone: '+91 73061 60066',
-      contactEmail: 'info@vasanthamgroup.com',
+      contactEmail: 'info@vasanthamonline.com',
       aboutText:
-        'Welcome to Vasantham Group — Malabar’s largest textile and fashion network, where tradition meets modern elegance. For generations, Vasantham has been a trusted name in the world of textiles. What began as a humble journey in Palakkad has now grown into one of Malabar’s most beloved destinations for premium fabrics, ethnic wear, and family fashion. At Vasantham Group, we take pride in offering an exquisite range of silk sarees, cotton wear, and designer fabrics — each piece crafted to perfection, blending timeless craftsmanship with contemporary design. Our mission is simple — to make elegant, high-quality fashion affordable for every family. From festive attire to daily wear, we bring you collections that celebrate comfort, culture, and class. Beyond fabrics, we believe in experiences — a warm, welcoming shopping atmosphere where every customer feels valued. Whether you visit our stores or connect with us online, we promise authenticity, quality, and a touch of heritage in every interaction. Vasantham Group — Where elegance is woven with tradition.',
+        'Welcome to Vasantham Online — Malabar’s largest textile and fashion network, where tradition meets modern elegance. For generations, Vasantham has been a trusted name in the world of textiles. What began as a humble journey in Palakkad has now grown into one of Malabar’s most beloved destinations for premium fabrics, ethnic wear, and family fashion. At Vasantham Online, we take pride in offering an exquisite range of silk sarees, cotton wear, and designer fabrics — each piece crafted to perfection, blending timeless craftsmanship with contemporary design. Our mission is simple — to make elegant, high-quality fashion affordable for every family. From festive attire to daily wear, we bring you collections that celebrate comfort, culture, and class. Beyond fabrics, we believe in experiences — a warm, welcoming shopping atmosphere where every customer feels valued. Whether you visit our stores or connect with us online, we promise authenticity, quality, and a touch of heritage in every interaction. Vasantham Online — Where elegance is woven with tradition.',
     },
   };
 }
@@ -67,7 +67,7 @@ export default async function AboutPage() {
             </p>
 
             <p>
-              Founded in the fertile cultural hub of Palakkad, Vasantham Group has spent decades building unbreakable relationships with master handloom weavers in Balaramapuram, Kanchipuram, Banaras, and Palakkad itself. Every warp and weft in our collection undergoes rigorous quality verification so that our customers take home not merely a fabric, but a family heirloom.
+              Founded in the fertile cultural hub of Palakkad, Vasantham Online has spent decades building unbreakable relationships with master handloom weavers in Balaramapuram, Kanchipuram, Banaras, and Palakkad itself. Every warp and weft in our collection undergoes rigorous quality verification so that our customers take home not merely a fabric, but a family heirloom.
             </p>
 
             <p>

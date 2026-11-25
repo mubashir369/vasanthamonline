@@ -12,6 +12,7 @@ export default function CartDrawer() {
     itemCount,
     subtotal,
     discountAmount,
+    couponNotice,
     deliveryFee,
     totalAmount,
     deliveryType,
@@ -218,12 +219,20 @@ export default function CartDrawer() {
           {/* Footer & Checkout Summary */}
           {items.length > 0 && (
             <div className="p-6 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 space-y-3">
+              {couponNotice && (
+                <p className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-800 dark:text-amber-300">
+                  {couponNotice}
+                </p>
+              )}
               {/* Coupon Form */}
               {coupon ? (
                 <div className="flex items-center justify-between p-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-lg text-xs">
                   <div className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 font-medium">
                     <Tag className="w-3.5 h-3.5" />
-                    <span>Coupon <strong>{coupon.code}</strong> applied (-{formatPrice(discountAmount)})</span>
+                    <span>
+                      Coupon <strong>{coupon.code}</strong>{' '}
+                      {discountAmount > 0 ? `applied (-${formatPrice(discountAmount)})` : 'saved – not applied yet'}
+                    </span>
                   </div>
                   <button
                     onClick={removeCoupon}

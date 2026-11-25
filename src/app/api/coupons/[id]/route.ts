@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import Coupon from '@/lib/models/Coupon';
 import { getUserFromRequest } from '@/lib/auth';
+import { validateCouponSetup } from '@/lib/couponRules';
 
 export async function PUT(
   req: NextRequest,
@@ -19,6 +20,22 @@ export async function PUT(
     const coupon = await Coupon.findById(params.id);
     if (!coupon) {
       return NextResponse.json({ success: false, error: 'Coupon not found' }, { status: 404 });
+    }
+
+    // Validate the coupon as it will be after this edit.
+    const merged = {
+      code: body.code ?? coupon.code,
+      discountType: body.discountType ?? coupon.discountType,
+      discountValue: body.discountValue ?? coupon.discountValue,
+      minOrderValue: body.minOrderValue ?? coupon.minOrderValue,
+      maxDiscountAmount: body.maxDiscountAmount !== undefined ? body.maxDiscountAmount : coupon.maxDiscountAmount,
+      startDate: coupon.startDate,
+      endDate: body.endDate ?? coupon.endDate,
+      usageLimit: body.usageLimit ?? coupon.usageLimit,
+    };
+    const setupError = validateCouponSetup(merged);
+    if (setupError) {
+      return NextResponse.json({ success: false, error: setupError }, { status: 400 });
     }
 
     if (body.code) coupon.code = body.code.toUpperCase().trim();

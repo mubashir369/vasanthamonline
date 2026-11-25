@@ -4,6 +4,7 @@
  * Sends OTP messages via MSG91's WhatsApp outbound API using
  * pre-approved authentication templates.
  */
+import { randomInt } from 'crypto';
 
 const MSG91_AUTH_KEY = process.env.MSG91_AUTH_KEY || '';
 const MSG91_INTEGRATED_NUMBER = process.env.MSG91_WHATSAPP_INTEGRATED_NUMBER || '';
@@ -30,16 +31,14 @@ export async function sendWhatsAppOTP(
   phone: string,
   otp: string
 ): Promise<{ success: boolean; message: string }> {
-  // Validate configuration
-  if (!MSG91_AUTH_KEY) {
-    console.warn('[MSG91] AUTH_KEY not configured – OTP will be logged to console only.');
-    console.log(`[MSG91 DEV] OTP for ${phone}: ${otp}`);
-    return { success: true, message: 'OTP logged to console (dev mode)' };
-  }
-
-  if (!MSG91_INTEGRATED_NUMBER || !MSG91_TEMPLATE_NAME) {
-    console.warn('[MSG91] Missing INTEGRATED_NUMBER or TEMPLATE_NAME configuration.');
-    console.log(`[MSG91 DEV] OTP for ${phone}: ${otp}`);
+  // Validate configuration. Without MSG91, codes are only logged in development;
+  // in production we fail instead of silently "sending" nothing.
+  if (!MSG91_AUTH_KEY || !MSG91_INTEGRATED_NUMBER || !MSG91_TEMPLATE_NAME) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[MSG91] WhatsApp OTP is not configured (AUTH_KEY / INTEGRATED_NUMBER / TEMPLATE_NAME).');
+      return { success: false, message: 'WhatsApp verification is not available right now. Please contact support.' };
+    }
+    console.warn(`[MSG91 DEV] WhatsApp not configured. OTP for ${phone}: ${otp}`);
     return { success: true, message: 'OTP logged to console (dev mode)' };
   }
 
@@ -102,10 +101,10 @@ export async function sendWhatsAppOTP(
 }
 
 /**
- * Generates a random 4-digit OTP string.
+ * Generates a cryptographically random 6-digit OTP string.
  */
 export function generateOTP(): string {
-  return Math.floor(1000 + Math.random() * 9000).toString();
+  return randomInt(100000, 1000000).toString();
 }
 
 /**

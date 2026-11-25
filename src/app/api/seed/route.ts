@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getUserFromRequest } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/db';
 import User from '@/lib/models/User';
@@ -10,7 +11,20 @@ import Review from '@/lib/models/Review';
 import StoreSettings from '@/lib/models/StoreSettings';
 import { initialCategories, initialProducts, initialCoupons } from '@/lib/seedData';
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  // This wipes and recreates the whole catalog, users and settings. Only a signed-in
+  // super admin may run it, and never on the live site unless explicitly enabled.
+  const user = getUserFromRequest(req);
+  if (!user || user.role !== 'SUPER_ADMIN') {
+    return NextResponse.json({ success: false, error: 'Super admin access required' }, { status: 403 });
+  }
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DATABASE_RESEED !== 'true') {
+    return NextResponse.json(
+      { success: false, error: 'Reseeding is disabled on the live site.' },
+      { status: 403 }
+    );
+  }
+
   try {
     await connectDB();
 
@@ -124,7 +138,7 @@ export async function POST() {
         productId: product._id,
         userName: 'Rahul K. Pillai',
         rating: 5,
-        comment: 'Superb craftsmanship and genuine traditional style. Vasantham Group never disappoints!',
+        comment: 'Superb craftsmanship and genuine traditional style. Vasantham Online never disappoints!',
         isApproved: true,
       });
     }

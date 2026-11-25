@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import Coupon from '@/lib/models/Coupon';
 import { getUserFromRequest } from '@/lib/auth';
+import { validateCouponSetup } from '@/lib/couponRules';
 
 export async function GET(req: NextRequest) {
   try {
@@ -49,6 +50,14 @@ export async function POST(req: NextRequest) {
         { success: false, error: 'Code, discountType, discountValue, and endDate are required' },
         { status: 400 }
       );
+    }
+
+    const setupError = validateCouponSetup(body);
+    if (setupError) {
+      return NextResponse.json({ success: false, error: setupError }, { status: 400 });
+    }
+    if (new Date(endDate) <= new Date()) {
+      return NextResponse.json({ success: false, error: 'Expiry date must be in the future' }, { status: 400 });
     }
 
     const upperCode = code.toUpperCase().trim();

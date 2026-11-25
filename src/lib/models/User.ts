@@ -20,6 +20,8 @@ export interface IUser extends Document {
   role: 'SUPER_ADMIN' | 'ADMIN' | 'CUSTOMER';
   phone?: string;
   authMethod: 'EMAIL' | 'WHATSAPP' | 'BOTH';
+  emailVerified: boolean;
+  phoneVerified: boolean;
   addresses: IAddress[];
   createdAt: Date;
   updatedAt: Date;
@@ -66,6 +68,8 @@ const UserSchema = new Schema<IUser>(
       enum: ['EMAIL', 'WHATSAPP', 'BOTH'],
       default: 'EMAIL',
     },
+    emailVerified: { type: Boolean, default: false },
+    phoneVerified: { type: Boolean, default: false },
     addresses: [AddressSchema],
   },
   {

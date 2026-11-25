@@ -25,8 +25,10 @@ async function getHomeData() {
 
   const [settingsDoc, categories, products, variants] = await Promise.all([
     StoreSettings.findOne().lean(),
-    Category.find({ isActive: true }).sort({ sortOrder: 1 }).limit(6).lean(),
-    Product.find().lean(),
+    // Every active category, in the admin's sort order
+    Category.find({ isActive: true }).sort({ sortOrder: 1, name: 1 }).lean(),
+    // Newest first, so "New Arrivals" (and the other rows) show the latest designs
+    Product.find().sort({ createdAt: -1 }).lean(),
     ProductVariant.find().lean(),
   ]);
 
@@ -58,17 +60,21 @@ async function getHomeData() {
     };
   });
 
-  const featured = enriched.filter((p) => p.isFeatured).slice(0, 4);
-  const newArrivals = enriched.filter((p) => p.isNewArrival).slice(0, 4);
-  const bestSellers = enriched.filter((p) => p.isBestSeller).slice(0, 4);
+  // Lean docs still contain ObjectIds (e.g. productId, categoryIds) and Dates, which
+  // can't be passed to Client Components. A JSON round-trip turns them into strings.
+  const toPlain = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
+
+  const featured = toPlain(enriched.filter((p) => p.isFeatured).slice(0, 4));
+  const newArrivals = toPlain(enriched.filter((p) => p.isNewArrival).slice(0, 4));
+  const bestSellers = toPlain(enriched.filter((p) => p.isBestSeller).slice(0, 4));
 
   return {
     settings: (settingsDoc as any) || {
-      storeName: 'Vasantham Group',
+      storeName: 'Vasantham Online',
       tagline: 'Where elegance is woven with tradition.',
       address: 'OPP. MY G Future, Main road Mannarkkad, PALAKKAD',
       aboutText:
-        'Welcome to Vasantham Group — Malabar’s largest textile and fashion network, where tradition meets modern elegance. For generations, Vasantham has been a trusted name in the world of textiles in Palakkad.',
+        'Welcome to Vasantham Online — Malabar’s largest textile and fashion network, where tradition meets modern elegance. For generations, Vasantham has been a trusted name in the world of textiles in Palakkad.',
       heroBadge: 'Malabar’s Largest Textile & Fashion Network',
       heroTitle: 'Where Elegance Is\nWoven with Tradition',
       heroSubtitle:

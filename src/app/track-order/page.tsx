@@ -254,12 +254,23 @@ function TrackOrderContent() {
                 ) : (
                   <div className="flex items-start gap-2 text-neutral-800 dark:text-neutral-200">
                     <Truck className="w-4 h-4 text-crimson-700 mt-0.5" />
-                    <div>
-                      <strong>{order.shippingAddress?.fullName}</strong>
-                      <p className="text-neutral-500 text-[11px]">
-                        {order.shippingAddress?.street}, {order.shippingAddress?.city}, {order.shippingAddress?.district}, {order.shippingAddress?.pincode}
-                      </p>
-                    </div>
+                    {order.limitedView ? (
+                      <div>
+                        <strong>Courier delivery to {order.shippingAddress?.city || 'your address'}</strong>
+                        <p className="text-neutral-500 text-[11px]">
+                          Enter your tracking code (TRK-…) to see the full delivery address.
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        <strong>{order.shippingAddress?.fullName}</strong>
+                        <p className="text-neutral-500 text-[11px]">
+                          {[order.shippingAddress?.street, order.shippingAddress?.city, order.shippingAddress?.district, order.shippingAddress?.pincode]
+                            .filter(Boolean)
+                            .join(', ')}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

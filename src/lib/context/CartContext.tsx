@@ -1,6 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { computeCouponDiscount } from '@/lib/couponRules';
+import { formatPrice } from '@/lib/utils';
 
 export interface CartItem {
   variantId: string;
@@ -20,6 +22,9 @@ export interface AppliedCoupon {
   code: string;
   discountType: 'percentage' | 'fixed';
   discountValue: number;
+  minOrderValue?: number;
+  maxDiscountAmount?: number;
+  /** Discount when the coupon was applied; the live amount is recalculated from the rules. */
   discountAmount: number;
 }
 
@@ -32,6 +37,8 @@ interface CartContextType {
   totalAmount: number;
   deliveryType: 'STORE_PICKUP' | 'HOME_DELIVERY';
   coupon: AppliedCoupon | null;
+  /** Set when an applied coupon doesn't currently apply, e.g. "Add ₹500 more to use FESTIVE20" */
+  couponNotice: string;
   isCartOpen: boolean;
   setIsCartOpen: (open: boolean) => void;
   setDeliveryType: (type: 'STORE_PICKUP' | 'HOME_DELIVERY') => void;
@@ -148,8 +155,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
-  // Re-calculate coupon discount if subtotal changes
-  const discountAmount = coupon ? Math.min(coupon.discountAmount, subtotal) : 0;
+  // Recalculate the coupon discount from its rules whenever the bag changes, using the
+  // same calculation the server charges with.
+  const discountAmount = coupon ? computeCouponDiscount(coupon, subtotal) : 0;
+  const shortBy = coupon ? (coupon.minOrderValue || 0) - subtotal : 0;
+  const couponNotice =
+    coupon && subtotal > 0 && shortBy > 0
+      ? `Add ${formatPrice(shortBy)} more to use ${coupon.code} (minimum order ${formatPrice(coupon.minOrderValue || 0)}).`
+      : '';
 
   // Delivery fee: ₹0 for store pickup or if subtotal >= 1999, else ₹80
   const deliveryFee =
@@ -194,6 +207,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         totalAmount,
         deliveryType,
         coupon,
+        couponNotice,
         isCartOpen,
         setIsCartOpen,
         setDeliveryType,

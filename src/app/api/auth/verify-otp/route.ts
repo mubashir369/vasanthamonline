@@ -1,140 +1,86 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
-import Otp from '@/lib/models/Otp';
 import User from '@/lib/models/User';
-import { signToken, AUTH_COOKIE_NAME } from '@/lib/auth';
-import { normalizePhone } from '@/lib/msg91';
+import { signedInResponse } from '@/lib/auth';
+import {
+  checkOtp,
+  isOtpChannel,
+  isOtpPurpose,
+  normalizeTarget,
+  phoneVariants,
+  signVerificationToken,
+} from '@/lib/otp';
 
-const MAX_VERIFY_ATTEMPTS = 5;
-
+/**
+ * POST /api/auth/verify-otp
+ * Body: { channel: 'EMAIL' | 'WHATSAPP', target: string, otp: string, purpose }
+ *
+ * LOGIN            -> signs the user in (sets the session cookie).
+ * REGISTER / PASSWORD_RESET / CHECKOUT_VERIFY
+ *                  -> returns { verificationToken } to send with the final request.
+ */
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
-    const { phone, otp, purpose = 'LOGIN' } = await req.json();
+    const body = await req.json();
+    const channel: unknown = body.channel ?? (body.phone ? 'WHATSAPP' : body.email ? 'EMAIL' : undefined);
+    const purpose: unknown = body.purpose ?? 'LOGIN';
 
-    if (!phone || !otp) {
-      return NextResponse.json(
-        { success: false, error: 'Phone and OTP are required' },
-        { status: 400 }
-      );
+    if (!isOtpChannel(channel) || !isOtpPurpose(purpose)) {
+      return NextResponse.json({ success: false, error: 'Invalid verification request' }, { status: 400 });
     }
 
-    if (!['LOGIN', 'CHECKOUT_VERIFY'].includes(purpose)) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid purpose' },
-        { status: 400 }
-      );
+    const target = normalizeTarget(channel, body.target ?? body.phone ?? body.email);
+    if (!target) {
+      return NextResponse.json({ success: false, error: 'Invalid email or phone number' }, { status: 400 });
     }
 
-    const normalizedPhone = normalizePhone(phone);
-
-    // Find the most recent un-verified OTP for this phone+purpose
-    const otpRecord = await Otp.findOne({
-      phone: normalizedPhone,
-      purpose,
-      verified: false,
-      expiresAt: { $gt: new Date() },
-    }).sort({ createdAt: -1 });
-
-    if (!otpRecord) {
-      return NextResponse.json(
-        { success: false, error: 'OTP expired or not found. Please request a new one.' },
-        { status: 400 }
-      );
+    const result = await checkOtp(channel, target, purpose, body.otp);
+    if (!result.ok) {
+      return NextResponse.json({ success: false, error: result.error }, { status: result.status });
     }
 
-    // Check max attempts
-    if (otpRecord.attempts >= MAX_VERIFY_ATTEMPTS) {
-      await Otp.deleteOne({ _id: otpRecord._id });
-      return NextResponse.json(
-        { success: false, error: 'Too many failed attempts. Please request a new OTP.' },
-        { status: 429 }
-      );
-    }
-
-    // Verify OTP
-    if (otpRecord.otp !== otp.trim()) {
-      otpRecord.attempts += 1;
-      await otpRecord.save();
-      const remaining = MAX_VERIFY_ATTEMPTS - otpRecord.attempts;
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Invalid OTP. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.`,
-        },
-        { status: 401 }
-      );
-    }
-
-    // Mark OTP as verified
-    otpRecord.verified = true;
-    await otpRecord.save();
-
-    // ---- CHECKOUT_VERIFY: Just confirm phone is verified ----
-    if (purpose === 'CHECKOUT_VERIFY') {
+    if (purpose !== 'LOGIN') {
       return NextResponse.json({
         success: true,
         verified: true,
-        message: 'Phone number verified successfully',
+        verificationToken: signVerificationToken(channel, target, purpose),
       });
     }
 
-    // ---- LOGIN: Find or create user, issue JWT ----
-    let user = await User.findOne({ phone: normalizedPhone });
+    // ---- LOGIN ----
+    if (channel === 'EMAIL') {
+      const user = await User.findOne({ email: target });
+      if (!user) {
+        return NextResponse.json({ success: false, error: 'No account found with this email' }, { status: 404 });
+      }
+      if (!user.emailVerified) {
+        user.emailVerified = true;
+        await user.save();
+      }
+      return signedInResponse(user);
+    }
 
+    // WhatsApp login: sign in, or create a WhatsApp-only account on first use.
+    let user = await User.findOne({ phone: { $in: phoneVariants(target) } });
     if (!user) {
-      // Auto-create new user with phone
-      const phoneSuffix = normalizedPhone.slice(-4);
       user = await User.create({
-        name: `User ${phoneSuffix}`,
-        phone: normalizedPhone,
-        email: undefined,
-        passwordHash: undefined,
+        name: `Customer ${target.slice(-4)}`,
+        phone: target,
         role: 'CUSTOMER',
         authMethod: 'WHATSAPP',
+        phoneVerified: true,
         addresses: [],
       });
-    } else if (user.authMethod === 'EMAIL') {
-      // User exists with email auth, upgrade to BOTH
-      user.authMethod = 'BOTH';
+    } else {
+      user.phone = target; // store older accounts' numbers in normalized form
+      user.phoneVerified = true;
+      if (user.authMethod === 'EMAIL') user.authMethod = 'BOTH';
       await user.save();
     }
-
-    const payload = {
-      userId: user._id.toString(),
-      email: user.email || '',
-      role: user.role as 'SUPER_ADMIN' | 'ADMIN' | 'CUSTOMER',
-      name: user.name,
-    };
-
-    const token = signToken(payload);
-
-    const response = NextResponse.json({
-      success: true,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email || '',
-        role: user.role,
-        phone: user.phone,
-        addresses: user.addresses,
-      },
-    });
-
-    response.cookies.set(AUTH_COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60, // 7 days
-    });
-
-    return response;
+    return signedInResponse(user);
   } catch (error: any) {
     console.error('[verify-otp] Error:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Failed to verify OTP' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: 'Failed to verify code' }, { status: 500 });
   }
 }

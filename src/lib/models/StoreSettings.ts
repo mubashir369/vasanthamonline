@@ -45,7 +45,7 @@ export interface IStoreSettings extends Document {
 
 const StoreSettingsSchema = new Schema<IStoreSettings>(
   {
-    storeName: { type: String, default: 'Vasantham Group' },
+    storeName: { type: String, default: 'Vasantham Online' },
     tagline: { type: String, default: 'Where elegance is woven with tradition.' },
     address: {
       type: String,
@@ -53,7 +53,7 @@ const StoreSettingsSchema = new Schema<IStoreSettings>(
     },
     contactPhone: { type: String, default: '+91 73061 60066' },
     whatsappPhone: { type: String, default: '+91 73061 60066' },
-    contactEmail: { type: String, default: 'info@vasanthamgroup.com' },
+    contactEmail: { type: String, default: 'info@vasanthamonline.com' },
     logoUrl: { type: String, default: '/logo.png' },
     instagramUrl: {
       type: String,
@@ -64,7 +64,7 @@ const StoreSettingsSchema = new Schema<IStoreSettings>(
     aboutText: {
       type: String,
       default:
-        'Welcome to Vasantham Group — Malabar’s largest textile and fashion network, where tradition meets modern elegance. For generations, Vasantham has been a trusted name in the world of textiles. What began as a humble journey in Palakkad has now grown into one of Malabar’s most beloved destinations for premium fabrics, ethnic wear, and family fashion. At Vasantham Group, we take pride in offering an exquisite range of silk sarees, cotton wear, and designer fabrics — each piece crafted to perfection, blending timeless craftsmanship with contemporary design. Our mission is simple — to make elegant, high-quality fashion affordable for every family. From festive attire to daily wear, we bring you collections that celebrate comfort, culture, and class. Beyond fabrics, we believe in experiences — a warm, welcoming shopping atmosphere where every customer feels valued. Whether you visit our stores or connect with us online, we promise authenticity, quality, and a touch of heritage in every interaction. Vasantham Group — Where elegance is woven with tradition.',
+        'Welcome to Vasantham Online — Malabar’s largest textile and fashion network, where tradition meets modern elegance. For generations, Vasantham has been a trusted name in the world of textiles. What began as a humble journey in Palakkad has now grown into one of Malabar’s most beloved destinations for premium fabrics, ethnic wear, and family fashion. At Vasantham Online, we take pride in offering an exquisite range of silk sarees, cotton wear, and designer fabrics — each piece crafted to perfection, blending timeless craftsmanship with contemporary design. Our mission is simple — to make elegant, high-quality fashion affordable for every family. From festive attire to daily wear, we bring you collections that celebrate comfort, culture, and class. Beyond fabrics, we believe in experiences — a warm, welcoming shopping atmosphere where every customer feels valued. Whether you visit our stores or connect with us online, we promise authenticity, quality, and a touch of heritage in every interaction. Vasantham Online — Where elegance is woven with tradition.',
     },
     freeDeliveryRadiusKm: { type: Number, default: 15 },
     freeDeliveryMinAmount: { type: Number, default: 1999 },

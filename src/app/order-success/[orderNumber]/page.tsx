@@ -39,7 +39,7 @@ export default function OrderSuccessPage() {
     } catch {}
 
     if (orderNumber) {
-      fetch(`/api/orders/${orderNumber}`)
+      fetch(`/api/orders/${encodeURIComponent(orderNumber)}?code=${encodeURIComponent(initialTrackingCode)}`)
         .then((res) => res.json())
         .then((data) => {
           if (data.success && data.order) {
@@ -74,7 +74,7 @@ export default function OrderSuccessPage() {
             Order Confirmed
           </span>
           <h1 className="font-serif text-3xl sm:text-4xl font-bold text-neutral-900 dark:text-neutral-100">
-            Thank You for Shopping with Vasantham Group!
+            Thank You for Shopping with Vasantham Online!
           </h1>
           <p className="text-sm text-neutral-600 dark:text-neutral-400 max-w-lg mx-auto pt-1">
             Your authentic Kerala handloom and textile order has been received and is now being carefully prepared.

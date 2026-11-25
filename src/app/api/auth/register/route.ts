@@ -1,70 +1,82 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import User from '@/lib/models/User';
-import { hashPassword, signToken, AUTH_COOKIE_NAME } from '@/lib/auth';
+import { hashPassword, signedInResponse } from '@/lib/auth';
+import { isValidVerificationToken, normalizeTarget, phoneVariants } from '@/lib/otp';
 
+/**
+ * POST /api/auth/register
+ * Body: { name, email, password, phone, emailToken, phoneToken }
+ * emailToken / phoneToken come from /api/auth/verify-otp with purpose REGISTER.
+ */
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
-    const { name, email, password, phone } = await req.json();
+    const { name, email, password, phone, emailToken, phoneToken } = await req.json();
 
-    if (!name || !email || !password) {
+    if (!name?.trim() || !email || !password || !phone) {
       return NextResponse.json(
-        { success: false, error: 'Name, email, and password are required' },
+        { success: false, error: 'Name, email, WhatsApp number and password are required' },
+        { status: 400 }
+      );
+    }
+    if (typeof password !== 'string' || password.length < 6) {
+      return NextResponse.json(
+        { success: false, error: 'Password must be at least 6 characters' },
         { status: 400 }
       );
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
-    const existing = await User.findOne({ email: normalizedEmail });
-    if (existing) {
+    const normalizedEmail = normalizeTarget('EMAIL', email);
+    const normalizedPhone = normalizeTarget('WHATSAPP', phone);
+    if (!normalizedEmail || !normalizedPhone) {
+      return NextResponse.json(
+        { success: false, error: 'Please enter a valid email and 10-digit WhatsApp number' },
+        { status: 400 }
+      );
+    }
+
+    if (!isValidVerificationToken(emailToken, 'EMAIL', normalizedEmail, 'REGISTER')) {
+      return NextResponse.json(
+        { success: false, error: 'Please verify your email address with the code we sent' },
+        { status: 403 }
+      );
+    }
+    if (!isValidVerificationToken(phoneToken, 'WHATSAPP', normalizedPhone, 'REGISTER')) {
+      return NextResponse.json(
+        { success: false, error: 'Please verify your WhatsApp number with the code we sent' },
+        { status: 403 }
+      );
+    }
+
+    if (await User.exists({ email: normalizedEmail })) {
       return NextResponse.json(
         { success: false, error: 'An account with this email already exists' },
         { status: 409 }
       );
     }
+    if (await User.exists({ phone: { $in: phoneVariants(normalizedPhone) } })) {
+      return NextResponse.json(
+        { success: false, error: 'This WhatsApp number is already registered. Please sign in instead.' },
+        { status: 409 }
+      );
+    }
 
-    const passwordHash = await hashPassword(password);
     const user = await User.create({
       name: name.trim(),
       email: normalizedEmail,
-      passwordHash,
-      phone: phone?.trim(),
+      passwordHash: await hashPassword(password),
+      phone: normalizedPhone,
       role: 'CUSTOMER',
+      authMethod: 'BOTH',
+      emailVerified: true,
+      phoneVerified: true,
       addresses: [],
     });
 
-    const payload = {
-      userId: user._id.toString(),
-      email: user.email || '',
-      role: user.role,
-      name: user.name,
-    };
-
-    const token = signToken(payload);
-
-    const response = NextResponse.json({
-      success: true,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        phone: user.phone,
-        addresses: user.addresses,
-      },
-    });
-
-    response.cookies.set(AUTH_COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60,
-    });
-
-    return response;
+    return signedInResponse(user);
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    console.error('[register] Error:', error);
+    return NextResponse.json({ success: false, error: 'Registration failed. Please try again.' }, { status: 500 });
   }
 }

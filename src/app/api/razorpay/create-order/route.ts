@@ -1,55 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Razorpay from 'razorpay';
+import connectDB from '@/lib/db';
+import { isValidVerificationToken, normalizeTarget } from '@/lib/otp';
+import { priceCart } from '@/lib/pricing.server';
+import { getRazorpay, toPaise } from '@/lib/razorpay.server';
 
+/**
+ * POST /api/razorpay/create-order
+ * Body: { items, couponCode, deliveryType, phone, checkoutToken }
+ *
+ * The amount is calculated here from the cart – never taken from the browser –
+ * and the OTP-verified phone is stored on the Razorpay order, so /api/orders can
+ * confirm the payment covers exactly this order for this customer.
+ */
 export async function POST(req: NextRequest) {
   try {
-    const key_id = process.env.RAZORPAY_KEY_ID;
-    const key_secret = process.env.RAZORPAY_KEY_SECRET;
-
-    if (!key_id || !key_secret) {
+    const razorpay = getRazorpay();
+    if (!razorpay) {
       return NextResponse.json(
         { success: false, error: 'Razorpay API credentials not configured.' },
         { status: 500 }
       );
     }
 
-    const body = await req.json();
-    const { amount, receipt } = body;
+    const { items, couponCode, deliveryType, phone, checkoutToken } = await req.json();
 
-    if (!amount || Number(amount) <= 0) {
+    // The customer's WhatsApp number must be OTP-verified before they can pay.
+    const verifiedPhone = normalizeTarget('WHATSAPP', phone);
+    if (!verifiedPhone || !isValidVerificationToken(checkoutToken, 'WHATSAPP', verifiedPhone, 'CHECKOUT_VERIFY')) {
       return NextResponse.json(
-        { success: false, error: 'Invalid order amount.' },
-        { status: 400 }
+        { success: false, error: 'Please verify your WhatsApp number with the OTP before paying.' },
+        { status: 403 }
       );
     }
 
-    const razorpay = new Razorpay({
-      key_id,
-      key_secret,
-    });
+    await connectDB();
+    const pricing = await priceCart({ items, couponCode, deliveryType });
+    if (!pricing.ok) {
+      return NextResponse.json({ success: false, error: pricing.error }, { status: pricing.status });
+    }
+    if (pricing.totalAmount <= 0) {
+      return NextResponse.json({ success: false, error: 'Invalid order amount.' }, { status: 400 });
+    }
 
-    // Amount in paise (1 INR = 100 paise)
-    const amountInPaise = Math.round(Number(amount) * 100);
-
-    const options = {
-      amount: amountInPaise,
+    const order = await razorpay.orders.create({
+      amount: toPaise(pricing.totalAmount),
       currency: 'INR',
-      receipt: receipt ? String(receipt).slice(0, 40) : `rcpt_${Date.now()}`,
-    };
-
-    const order = await razorpay.orders.create(options);
+      receipt: `rcpt_${Date.now()}`,
+      notes: { phone: verifiedPhone },
+    });
 
     return NextResponse.json({
       success: true,
       orderId: order.id,
       amount: order.amount,
       currency: order.currency,
-      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || key_id,
+      totalAmount: pricing.totalAmount,
+      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID,
     });
   } catch (error: any) {
     console.error('Razorpay create-order error:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to create Razorpay order' },
+      { success: false, error: 'Failed to create Razorpay order' },
       { status: 500 }
     );
   }

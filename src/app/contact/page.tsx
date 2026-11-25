@@ -116,10 +116,10 @@ export default function ContactPage() {
                     Official Email
                   </strong>
                   <a
-                    href="mailto:info@vasanthamgroup.com"
+                    href="mailto:info@vasanthamonline.com"
                     className="text-neutral-700 dark:text-neutral-300 hover:text-crimson-700 dark:hover:text-gold-400 font-semibold block mt-0.5"
                   >
-                    info@vasanthamgroup.com
+                    info@vasanthamonline.com
                   </a>
                 </div>
               </div>

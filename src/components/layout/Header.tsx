@@ -32,6 +32,9 @@ interface HeaderProps {
   };
 }
 
+/** How many categories fit in the desktop menu bar; the rest go under "More". */
+const DESKTOP_INLINE_CATEGORIES = 3;
+
 export default function Header({ initialSettings }: HeaderProps) {
   const router = useRouter();
   const { user, logout } = useAuth();
@@ -40,7 +43,7 @@ export default function Header({ initialSettings }: HeaderProps) {
 
   const [settings, setSettings] = useState(
     initialSettings || {
-      storeName: 'Vasantham Group',
+      storeName: 'Vasantham Online',
       tagline: 'Where elegance is woven with tradition.',
       address: 'OPP. MY G Future, Main road Mannarkkad, PALAKKAD',
       contactPhone: '+91 73061 60066',
@@ -51,6 +54,7 @@ export default function Header({ initialSettings }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [categoryLinks, setCategoryLinks] = useState<{ label: string; href: string }[]>([]);
 
   useEffect(() => {
     fetch('/api/settings')
@@ -71,16 +75,33 @@ export default function Header({ initialSettings }: HeaderProps) {
     }
   };
 
-  const navLinks = [
-    { label: 'All Collections', href: '/catalog' },
-    { label: 'Silk Sarees', href: '/catalog?category=silk-sarees' },
-    { label: 'Kerala Kasavu', href: '/catalog?category=kerala-kasavu' },
+  // Categories come from the admin (Categories page), in its sort order
+  useEffect(() => {
+    fetch('/api/categories')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.categories)) {
+          setCategoryLinks(
+            data.categories.map((c: any) => ({ label: c.name, href: `/catalog?category=${c.slug}` }))
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const audienceLinks = [
     { label: 'Women', href: '/catalog?audience=women,ladies' },
     { label: 'Men', href: '/catalog?audience=men,gents' },
     { label: 'Kids', href: '/catalog?audience=girls,boys' },
-    { label: 'Cotton Wear', href: '/catalog?fabricType=Cotton' },
-    { label: 'About Us', href: '/about' },
   ];
+  const allCollectionsLink = { label: 'All Collections', href: '/catalog' };
+  const aboutLink = { label: 'About Us', href: '/about' };
+
+  // Desktop bar: first few categories inline, the rest under "More"
+  const inlineCategories = categoryLinks.slice(0, DESKTOP_INLINE_CATEGORIES);
+  const moreCategories = categoryLinks.slice(DESKTOP_INLINE_CATEGORIES);
+  const navLinks = [allCollectionsLink, ...inlineCategories, ...audienceLinks, aboutLink];
+  const mobileNavLinks = [allCollectionsLink, ...categoryLinks, ...audienceLinks, aboutLink];
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md border-b border-neutral-200/80 dark:border-neutral-800 transition-colors shadow-sm">
@@ -279,6 +300,31 @@ export default function Header({ initialSettings }: HeaderProps) {
                 </Link>
               </li>
             ))}
+            {moreCategories.length > 0 && (
+              <li className="relative group">
+                <button
+                  type="button"
+                  aria-haspopup="true"
+                  className="flex items-center gap-1 uppercase text-neutral-700 dark:text-neutral-300 hover:text-crimson-800 dark:hover:text-gold-400 transition-colors pb-1"
+                >
+                  More <ChevronDown className="w-3 h-3" />
+                </button>
+                <div className="absolute left-0 top-full z-50 hidden group-hover:block group-focus-within:block min-w-[220px] pt-2">
+                  <ul className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl py-2 normal-case tracking-normal">
+                    {moreCategories.map((link) => (
+                      <li key={link.href}>
+                        <Link
+                          href={link.href}
+                          className="block px-4 py-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-crimson-50 dark:hover:bg-neutral-800 hover:text-crimson-800 dark:hover:text-gold-400"
+                        >
+                          {link.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </li>
+            )}
           </ul>
           <Link
             href="/track-order"
@@ -306,7 +352,7 @@ export default function Header({ initialSettings }: HeaderProps) {
 
           {/* Navigation Links */}
           <div className="grid grid-cols-2 gap-2 pt-2">
-            {navLinks.map((link) => (
+            {mobileNavLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}

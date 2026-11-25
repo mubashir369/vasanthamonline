@@ -87,7 +87,7 @@ async function seedAdmin() {
       $set: {
         contactPhone: '+91 73061 60066',
         whatsappPhone: '+91 73061 60066',
-        contactEmail: 'info@vasanthamgroup.com',
+        contactEmail: 'info@vasanthamonline.com',
         logoUrl: '/logo.png',
         instagramUrl: 'https://www.instagram.com/vasanthamonline?cplk=MWZqM21vdTVsZWk0aA=='
       }

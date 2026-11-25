@@ -2,7 +2,7 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export type DeliveryType = 'STORE_PICKUP' | 'HOME_DELIVERY';
 export type PaymentMethod = 'COD' | 'ONLINE' | 'DEMO_TEST';
-export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED';
+export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUND_DUE' | 'REFUNDED';
 export type OrderStatus =
   | 'PENDING'
   | 'CONFIRMED'
@@ -133,7 +133,7 @@ const OrderSchema = new Schema<IOrder>(
     },
     paymentStatus: {
       type: String,
-      enum: ['PENDING', 'PAID', 'FAILED'],
+      enum: ['PENDING', 'PAID', 'FAILED', 'REFUND_DUE', 'REFUNDED'],
       default: 'PENDING',
     },
     razorpayOrderId: { type: String },

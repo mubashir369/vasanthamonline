@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { CART_STORAGE_KEYS } from '@/lib/cartStorage';
 
 export interface UserProfile {
   id: string;
@@ -15,11 +16,22 @@ interface AuthContextType {
   user: UserProfile | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  register: (name: string, email: string, password: string, phone?: string) => Promise<{ success: boolean; error?: string }>;
+  register: (details: RegisterDetails) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
-  sendOtp: (phone: string, purpose?: string) => Promise<{ success: boolean; error?: string; message?: string }>;
-  verifyOtp: (phone: string, otp: string, purpose?: string) => Promise<{ success: boolean; error?: string; verified?: boolean }>;
+  /** Stores the user returned by an OTP sign-in or password reset (cookie is already set). */
+  setSignedInUser: (user: UserProfile) => void;
+}
+
+export interface RegisterDetails {
+  name: string;
+  email: string;
+  password: string;
+  phone: string;
+  /** From verifying the email code (purpose REGISTER) */
+  emailToken: string;
+  /** From verifying the WhatsApp code (purpose REGISTER) */
+  phoneToken: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -66,12 +78,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const register = async (name: string, email: string, password: string, phone?: string) => {
+  const register = async (details: RegisterDetails) => {
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password, phone }),
+        body: JSON.stringify(details),
       });
       const data = await res.json();
       if (data.success) {
@@ -85,55 +97,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    // Clear the bag and any applied coupon so the next person using this
+    // browser doesn't inherit them. The page reload below resets the cart state.
+    CART_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
-      setUser(null);
-      window.location.href = '/';
     } catch {
-      setUser(null);
+      // Still sign out locally if the request fails
     }
+    setUser(null);
+    window.location.href = '/';
   };
 
-  const sendOtp = async (phone: string, purpose: string = 'LOGIN') => {
-    try {
-      const res = await fetch('/api/auth/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, purpose }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        return { success: true, message: data.message };
-      }
-      return { success: false, error: data.error || 'Failed to send OTP' };
-    } catch (err: any) {
-      return { success: false, error: err.message || 'Failed to send OTP' };
-    }
-  };
-
-  const verifyOtp = async (phone: string, otp: string, purpose: string = 'LOGIN') => {
-    try {
-      const res = await fetch('/api/auth/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, otp, purpose }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        // For LOGIN purpose, server sets cookie and returns user
-        if (purpose === 'LOGIN' && data.user) {
-          setUser(data.user);
-        }
-        return { success: true, verified: data.verified };
-      }
-      return { success: false, error: data.error || 'Verification failed' };
-    } catch (err: any) {
-      return { success: false, error: err.message || 'Verification error' };
-    }
-  };
+  const setSignedInUser = (signedIn: UserProfile) => setUser(signedIn);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout, refreshUser, sendOtp, verifyOtp }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, logout, refreshUser, setSignedInUser }}>
       {children}
     </AuthContext.Provider>
   );

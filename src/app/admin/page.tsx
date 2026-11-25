@@ -120,7 +120,14 @@ export default function AdminDashboardPage() {
           <div className="text-2xl font-serif font-bold text-neutral-900 dark:text-neutral-100">
             {formatPrice(metrics.totalRevenue)}
           </div>
-          <p className="text-[11px] text-neutral-500">From paid & completed deliveries</p>
+          <p className="text-[11px] text-neutral-500">
+            Collected {formatPrice(metrics.collectedRevenue || 0)} • Awaiting {formatPrice(metrics.awaitingPayment || 0)}
+          </p>
+          {metrics.refundsDue > 0 && (
+            <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+              {metrics.refundsDue} refund{metrics.refundsDue === 1 ? '' : 's'} due
+            </p>
+          )}
         </div>
 
         <div className="bg-white dark:bg-neutral-900 p-5 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm space-y-2">
@@ -133,7 +140,10 @@ export default function AdminDashboardPage() {
           <div className="text-2xl font-serif font-bold text-neutral-900 dark:text-neutral-100">
             {metrics.totalOrders}
           </div>
-          <p className="text-[11px] text-neutral-500">Avg Value: {formatPrice(metrics.averageOrderValue)}</p>
+          <p className="text-[11px] text-neutral-500">
+            Avg value {formatPrice(metrics.averageOrderValue)}
+            {metrics.cancelledOrders > 0 ? ` • ${metrics.cancelledOrders} cancelled` : ''}
+          </p>
         </div>
 
         <div className="bg-white dark:bg-neutral-900 p-5 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm space-y-2">

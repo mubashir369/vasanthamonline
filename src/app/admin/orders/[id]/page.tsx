@@ -14,14 +14,12 @@ import {
   ExternalLink,
 } from 'lucide-react';
 
-const ORDER_STATUSES = [
-  'PENDING',
-  'CONFIRMED',
-  'PROCESSING',
-  'SHIPPED',
-  'DELIVERED',
-  'CANCELLED',
-];
+import {
+  allowedNextStatuses,
+  OrderStatus,
+  PAYMENT_STATUSES,
+  PAYMENT_STATUS_LABELS,
+} from '@/lib/orderStatus';
 
 export default function AdminOrderDetailPage() {
   const params = useParams();
@@ -75,6 +73,8 @@ export default function AdminOrderDetailPage() {
       const data = await res.json();
       if (data.success && data.order) {
         setOrder(data.order);
+        setNewStatus(data.order.orderStatus);
+        setNewPaymentStatus(data.order.paymentStatus);
         setStatusNote('');
         setMessage('Order status updated and event logged in audit timeline!');
         setTimeout(() => setMessage(''), 5000);
@@ -265,12 +265,18 @@ export default function AdminOrderDetailPage() {
                   onChange={(e) => setNewStatus(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 font-semibold text-neutral-900 dark:text-neutral-100"
                 >
-                  {ORDER_STATUSES.map((st) => (
+                  {/* Only the current status and the steps allowed from it */}
+                  {[order.orderStatus as OrderStatus, ...allowedNextStatuses(order.orderStatus)].map((st, i) => (
                     <option key={st} value={st}>
-                      {st}
+                      {i === 0 ? `${st} (current)` : st === 'CANCELLED' ? 'CANCELLED – returns stock' : st}
                     </option>
                   ))}
                 </select>
+                {allowedNextStatuses(order.orderStatus).length === 0 && (
+                  <p className="mt-1 text-[11px] text-neutral-500">
+                    This order is {String(order.orderStatus).toLowerCase()} – its status can no longer change. You can still add notes.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -282,9 +288,11 @@ export default function AdminOrderDetailPage() {
                   onChange={(e) => setNewPaymentStatus(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 font-semibold text-neutral-900 dark:text-neutral-100"
                 >
-                  <option value="PENDING">PENDING</option>
-                  <option value="PAID">PAID</option>
-                  <option value="FAILED">FAILED</option>
+                  {PAYMENT_STATUSES.map((st) => (
+                    <option key={st} value={st}>
+                      {PAYMENT_STATUS_LABELS[st]}
+                    </option>
+                  ))}
                 </select>
               </div>
 

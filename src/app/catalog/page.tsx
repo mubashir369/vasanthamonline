@@ -133,7 +133,7 @@ function CatalogContent() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-6">
         <div>
           <span className="text-xs uppercase tracking-wider text-crimson-700 dark:text-gold-400 font-semibold">
-            Vasantham Group Handlooms & Fashion
+            Vasantham Online Handlooms & Fashion
           </span>
           <h1 className="font-serif text-3xl font-bold text-neutral-900 dark:text-neutral-100 mt-1">
             {currentCategory

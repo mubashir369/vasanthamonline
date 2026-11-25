@@ -1,9 +1,9 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { cookies } from 'next/headers';
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'vasantham_heritage_jwt_secret_malabar_2026';
+export const JWT_SECRET = process.env.JWT_SECRET || 'vasantham_heritage_jwt_secret_malabar_2026';
 export const AUTH_COOKIE_NAME = 'vasantham_token';
 
 export interface TokenPayload {
@@ -42,6 +42,45 @@ export async function getCurrentUser(): Promise<TokenPayload | null> {
   } catch {
     return null;
   }
+}
+
+/** JSON response for a successful sign-in, with the session cookie set. */
+export function signedInResponse(user: {
+  _id: { toString(): string };
+  name: string;
+  email?: string;
+  role: TokenPayload['role'];
+  phone?: string;
+  addresses?: unknown[];
+}) {
+  const token = signToken({
+    userId: user._id.toString(),
+    email: user.email || '',
+    role: user.role,
+    name: user.name,
+  });
+
+  const response = NextResponse.json({
+    success: true,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email || '',
+      role: user.role,
+      phone: user.phone,
+      addresses: user.addresses || [],
+    },
+  });
+
+  response.cookies.set(AUTH_COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60, // 7 days
+  });
+
+  return response;
 }
 
 export function getUserFromRequest(req: NextRequest): TokenPayload | null {

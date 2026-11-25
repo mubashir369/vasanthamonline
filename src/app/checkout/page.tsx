@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useCart } from '@/lib/context/CartContext';
 import { useAuth } from '@/lib/context/AuthContext';
 import { formatPrice } from '@/lib/utils';
+import OtpVerifier from '@/components/auth/OtpVerifier';
 import {
   ShieldCheck,
   Store,
@@ -22,20 +23,18 @@ import {
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, subtotal, discountAmount, deliveryFee, totalAmount, deliveryType, setDeliveryType, coupon, clearCart } = useCart();
-  const { user, sendOtp, verifyOtp } = useAuth();
+  const { user } = useAuth();
 
   // Contact info
   const [customerName, setCustomerName] = useState(user?.name || '');
   const [customerEmail, setCustomerEmail] = useState(user?.email || '');
   const [customerPhone, setCustomerPhone] = useState(user?.phone || '');
 
-  // Phone verification state
-  const [phoneVerified, setPhoneVerified] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpValue, setOtpValue] = useState('');
-  const [otpLoading, setOtpLoading] = useState(false);
-  const [verifyError, setVerifyError] = useState('');
-  const [resendTimer, setResendTimer] = useState(0);
+  // WhatsApp OTP verification (required for every order)
+  const [checkoutToken, setCheckoutToken] = useState('');
+  const phoneVerified = Boolean(checkoutToken);
+  const phoneDigits = customerPhone.replace(/\D/g, '').replace(/^(91|0)(?=\d{10}$)/, '');
+  const phoneValid = /^[6-9]\d{9}$/.test(phoneDigits);
 
   // Shipping Address
   const defaultAddress = user?.addresses?.find((a: any) => a.isDefault) || user?.addresses?.[0];
@@ -47,7 +46,7 @@ export default function CheckoutPage() {
   const [pincode, setPincode] = useState(defaultAddress?.pincode || '678001');
 
   // Payment Method
-  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE' | 'DEMO_TEST'>('COD');
+  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE'>('COD');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
 
@@ -68,63 +67,6 @@ export default function CheckoutPage() {
       }
     }
   }, [user]);
-
-  // Countdown timer for OTP resend
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (resendTimer > 0) {
-      interval = setInterval(() => {
-        setResendTimer((prev) => (prev > 0 ? prev - 1 : 0));
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [resendTimer]);
-
-  const handleSendOtp = async () => {
-    if (!customerPhone.trim()) {
-      setVerifyError('Please enter a phone number first.');
-      return;
-    }
-    setOtpLoading(true);
-    setVerifyError('');
-    try {
-      const res = await sendOtp(customerPhone.trim(), 'CHECKOUT_VERIFY');
-      if (res.success) {
-        setOtpSent(true);
-        setResendTimer(60);
-      } else {
-        setVerifyError(res.error || 'Failed to send OTP. Please try again.');
-      }
-    } catch (err: any) {
-      setVerifyError(err.message || 'Error sending OTP');
-    } finally {
-      setOtpLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    if (!otpValue.trim() || otpValue.trim().length < 4) {
-      setVerifyError('Please enter a valid 4-digit OTP.');
-      return;
-    }
-    setOtpLoading(true);
-    setVerifyError('');
-    try {
-      const res = await verifyOtp(customerPhone.trim(), otpValue.trim(), 'CHECKOUT_VERIFY');
-      if (res.success && res.verified) {
-        setPhoneVerified(true);
-        setOtpSent(false);
-        setOtpValue('');
-        setVerifyError('');
-      } else {
-        setVerifyError(res.error || 'Invalid OTP. Please check and try again.');
-      }
-    } catch (err: any) {
-      setVerifyError(err.message || 'Error verifying OTP');
-    } finally {
-      setOtpLoading(false);
-    }
-  };
 
   if (items.length === 0) {
     return (
@@ -176,8 +118,8 @@ export default function CheckoutPage() {
       }
     }
 
-    if (paymentMethod === 'COD' && !phoneVerified) {
-      setError('Please verify your phone number via WhatsApp OTP for Cash on Delivery orders.');
+    if (!phoneVerified) {
+      setError('Please verify your WhatsApp number with the OTP before placing your order.');
       return;
     }
 
@@ -186,7 +128,7 @@ export default function CheckoutPage() {
     const baseOrderPayload = {
       customerInfo: {
         name: customerName.trim(),
-        email: customerEmail.trim() || 'customer@vasantham.com',
+        email: customerEmail.trim() || 'customer@vasanthamonline.com',
         phone: customerPhone.trim(),
       },
       shippingAddress: {
@@ -200,6 +142,7 @@ export default function CheckoutPage() {
         pincode: pincode.trim(),
       },
       deliveryType,
+      checkoutToken,
       items: items.map((i) => ({
         variantId: i.variantId,
         quantity: i.quantity,
@@ -221,9 +164,13 @@ export default function CheckoutPage() {
         const rzpOrderRes = await fetch('/api/razorpay/create-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          // The server prices the cart itself; the amount is never sent from here.
           body: JSON.stringify({
-            amount: totalAmount,
-            receipt: `rcpt_${Date.now()}`,
+            items: baseOrderPayload.items,
+            couponCode: baseOrderPayload.couponCode,
+            deliveryType,
+            phone: customerPhone.trim(),
+            checkoutToken,
           }),
         });
 
@@ -239,7 +186,7 @@ export default function CheckoutPage() {
           key: rzpData.key,
           amount: rzpData.amount,
           currency: rzpData.currency || 'INR',
-          name: 'Vasantham Group',
+          name: 'Vasantham Online',
           description: 'Ethnic Wear & Heritage Silks',
           image: '/logo.png',
           order_id: rzpData.orderId,
@@ -275,7 +222,7 @@ export default function CheckoutPage() {
           },
           prefill: {
             name: customerName.trim(),
-            email: customerEmail.trim() || 'customer@vasantham.com',
+            email: customerEmail.trim() || 'customer@vasanthamonline.com',
             contact: customerPhone.trim(),
           },
           theme: {
@@ -295,7 +242,7 @@ export default function CheckoutPage() {
         });
         rzp.open();
       } else {
-        // COD or DEMO_TEST flow
+        // Cash on delivery / pay at store
         const orderPayload = {
           ...baseOrderPayload,
           paymentMethod,
@@ -379,103 +326,33 @@ export default function CheckoutPage() {
                   )}
                 </div>
 
-                <div className="flex gap-2">
-                  <input
-                    type="tel"
-                    required
-                    value={customerPhone}
-                    onChange={(e) => {
-                      setCustomerPhone(e.target.value);
-                      setPhoneVerified(false);
-                      setOtpSent(false);
-                      setOtpValue('');
-                      setVerifyError('');
-                    }}
-                    placeholder="e.g. +91 98950 11223"
-                    className="flex-1 min-w-0 px-3.5 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:ring-1 focus:ring-crimson-600 focus:outline-none"
-                  />
+                <input
+                  type="tel"
+                  required
+                  value={customerPhone}
+                  onChange={(e) => {
+                    setCustomerPhone(e.target.value);
+                    setCheckoutToken('');
+                  }}
+                  placeholder="e.g. 98950 11223"
+                  className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:ring-1 focus:ring-crimson-600 focus:outline-none"
+                />
 
-                  {paymentMethod === 'COD' && !phoneVerified && !otpSent && (
-                    <button
-                      type="button"
-                      disabled={otpLoading || !customerPhone.trim()}
-                      onClick={handleSendOtp}
-                      className="px-3 py-2 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-medium rounded-lg text-xs transition disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap shrink-0"
-                    >
-                      {otpLoading ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Sending...</span>
-                        </>
-                      ) : (
-                        <span>Verify via WhatsApp</span>
-                      )}
-                    </button>
-                  )}
-                </div>
-
-                {/* Inline OTP verification block when OTP is sent */}
-                {paymentMethod === 'COD' && !phoneVerified && otpSent && (
-                  <div className="mt-2.5 p-3 bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700 rounded-lg space-y-2">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-neutral-600 dark:text-neutral-300 font-medium">
-                        Enter 4-digit WhatsApp OTP
-                      </span>
-                      {resendTimer > 0 ? (
-                        <span className="text-neutral-400">Resend in {resendTimer}s</span>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={otpLoading}
-                          onClick={handleSendOtp}
-                          className="text-green-600 dark:text-green-400 font-semibold hover:underline"
-                        >
-                          Resend OTP
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        maxLength={4}
-                        value={otpValue}
-                        onChange={(e) => {
-                          setOtpValue(e.target.value.replace(/\D/g, '').slice(0, 4));
-                          if (verifyError) setVerifyError('');
-                        }}
-                        placeholder="••••"
-                        className="w-24 px-3 py-2 text-center tracking-widest text-sm font-bold rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:ring-1 focus:ring-green-600 focus:outline-none"
-                      />
-                      <button
-                        type="button"
-                        disabled={otpLoading || otpValue.length < 4}
-                        onClick={handleVerifyOtp}
-                        className="px-4 py-2 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-medium rounded-lg text-xs transition disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-sm"
-                      >
-                        {otpLoading ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span>Verifying...</span>
-                          </>
-                        ) : (
-                          <span>Verify</span>
-                        )}
-                      </button>
-                    </div>
-
-                    {verifyError && (
-                      <p className="text-[11px] text-red-600 dark:text-red-400 font-medium">
-                        {verifyError}
-                      </p>
-                    )}
+                {!phoneVerified && (
+                  <div className="mt-2">
+                    <OtpVerifier
+                      key={`checkout-${phoneDigits}`}
+                      channel="WHATSAPP"
+                      target={phoneDigits}
+                      purpose="CHECKOUT_VERIFY"
+                      disabled={!phoneValid}
+                      sendLabel="Verify via WhatsApp"
+                      onVerified={({ verificationToken }) => setCheckoutToken(verificationToken || '')}
+                    />
+                    <p className="mt-1 text-[11px] text-neutral-500">
+                      We verify every order with a WhatsApp code before it&apos;s placed.
+                    </p>
                   </div>
-                )}
-
-                {paymentMethod === 'COD' && !phoneVerified && !otpSent && verifyError && (
-                  <p className="mt-1 text-[11px] text-red-600 dark:text-red-400 font-medium">
-                    {verifyError}
-                  </p>
                 )}
               </div>
 
@@ -609,7 +486,7 @@ export default function CheckoutPage() {
               <div className="p-3 bg-gold-50 dark:bg-neutral-800/80 border border-gold-300/40 rounded-lg text-xs space-y-1">
                 <div className="font-bold text-neutral-900 dark:text-gold-300 flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-gold-600" />
-                  Pickup Point: Vasantham Group Flagship Store
+                  Pickup Point: Vasantham Online Flagship Store
                 </div>
                 <p className="text-neutral-600 dark:text-neutral-300">
                   OPP. MY G Future, Main road Mannarkkad, PALAKKAD, Kerala - 678582.
