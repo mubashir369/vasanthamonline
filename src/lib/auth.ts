@@ -35,7 +35,7 @@ export async function comparePassword(password: string, hash: string): Promise<b
 
 export async function getCurrentUser(): Promise<TokenPayload | null> {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get(AUTH_COOKIE_NAME)?.value;
     if (!token) return null;
     return verifyToken(token);

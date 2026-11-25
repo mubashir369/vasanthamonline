@@ -4,7 +4,8 @@ import Category from '@/lib/models/Category';
 import { getUserFromRequest } from '@/lib/auth';
 import { slugify } from '@/lib/utils';
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, { params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = await paramsPromise;
   try {
     await connectDB();
     const user = getUserFromRequest(req);
@@ -35,7 +36,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = await paramsPromise;
   try {
     await connectDB();
     const user = getUserFromRequest(req);

@@ -9,8 +9,9 @@ import { slugify } from '@/lib/utils';
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { slug: string } }
+  { params: paramsPromise }: { params: Promise<{ slug: string }> }
 ) {
+  const params = await paramsPromise;
   try {
     await connectDB();
     const identifier = params.slug;
@@ -76,8 +77,9 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { slug: string } }
+  { params: paramsPromise }: { params: Promise<{ slug: string }> }
 ) {
+  const params = await paramsPromise;
   try {
     await connectDB();
     const user = getUserFromRequest(req);
@@ -197,8 +199,9 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { slug: string } }
+  { params: paramsPromise }: { params: Promise<{ slug: string }> }
 ) {
+  const params = await paramsPromise;
   try {
     await connectDB();
     const user = getUserFromRequest(req);
