@@ -16,17 +16,26 @@ import {
   AlertCircle,
   MapPin,
   CheckCircle2,
+  Loader2,
 } from 'lucide-react';
 
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, subtotal, discountAmount, deliveryFee, totalAmount, deliveryType, setDeliveryType, coupon, clearCart } = useCart();
-  const { user } = useAuth();
+  const { user, sendOtp, verifyOtp } = useAuth();
 
   // Contact info
   const [customerName, setCustomerName] = useState(user?.name || '');
   const [customerEmail, setCustomerEmail] = useState(user?.email || '');
   const [customerPhone, setCustomerPhone] = useState(user?.phone || '');
+
+  // Phone verification state
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpValue, setOtpValue] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [verifyError, setVerifyError] = useState('');
+  const [resendTimer, setResendTimer] = useState(0);
 
   // Shipping Address
   const defaultAddress = user?.addresses?.find((a: any) => a.isDefault) || user?.addresses?.[0];
@@ -60,6 +69,63 @@ export default function CheckoutPage() {
     }
   }, [user]);
 
+  // Countdown timer for OTP resend
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
+  const handleSendOtp = async () => {
+    if (!customerPhone.trim()) {
+      setVerifyError('Please enter a phone number first.');
+      return;
+    }
+    setOtpLoading(true);
+    setVerifyError('');
+    try {
+      const res = await sendOtp(customerPhone.trim(), 'CHECKOUT_VERIFY');
+      if (res.success) {
+        setOtpSent(true);
+        setResendTimer(60);
+      } else {
+        setVerifyError(res.error || 'Failed to send OTP. Please try again.');
+      }
+    } catch (err: any) {
+      setVerifyError(err.message || 'Error sending OTP');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otpValue.trim() || otpValue.trim().length < 4) {
+      setVerifyError('Please enter a valid 4-digit OTP.');
+      return;
+    }
+    setOtpLoading(true);
+    setVerifyError('');
+    try {
+      const res = await verifyOtp(customerPhone.trim(), otpValue.trim(), 'CHECKOUT_VERIFY');
+      if (res.success && res.verified) {
+        setPhoneVerified(true);
+        setOtpSent(false);
+        setOtpValue('');
+        setVerifyError('');
+      } else {
+        setVerifyError(res.error || 'Invalid OTP. Please check and try again.');
+      }
+    } catch (err: any) {
+      setVerifyError(err.message || 'Error verifying OTP');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
   if (items.length === 0) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center space-y-4">
@@ -74,6 +140,25 @@ export default function CheckoutPage() {
       </div>
     );
   }
+
+  const loadRazorpayScript = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (typeof window === 'undefined') {
+        resolve(false);
+        return;
+      }
+      if ((window as any).Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,48 +176,146 @@ export default function CheckoutPage() {
       }
     }
 
+    if (paymentMethod === 'COD' && !phoneVerified) {
+      setError('Please verify your phone number via WhatsApp OTP for Cash on Delivery orders.');
+      return;
+    }
+
     setIsProcessing(true);
 
+    const baseOrderPayload = {
+      customerInfo: {
+        name: customerName.trim(),
+        email: customerEmail.trim() || 'customer@vasantham.com',
+        phone: customerPhone.trim(),
+      },
+      shippingAddress: {
+        fullName: customerName.trim(),
+        phone: customerPhone.trim(),
+        street: street.trim(),
+        landmark: landmark.trim(),
+        city: city.trim(),
+        district: district.trim(),
+        state: state.trim(),
+        pincode: pincode.trim(),
+      },
+      deliveryType,
+      items: items.map((i) => ({
+        variantId: i.variantId,
+        quantity: i.quantity,
+      })),
+      couponCode: coupon?.code,
+    };
+
     try {
-      const orderPayload = {
-        customerInfo: {
-          name: customerName.trim(),
-          email: customerEmail.trim() || 'customer@vasantham.com',
-          phone: customerPhone.trim(),
-        },
-        shippingAddress: {
-          fullName: customerName.trim(),
-          phone: customerPhone.trim(),
-          street: street.trim(),
-          landmark: landmark.trim(),
-          city: city.trim(),
-          district: district.trim(),
-          state: state.trim(),
-          pincode: pincode.trim(),
-        },
-        deliveryType,
-        items: items.map((i) => ({
-          variantId: i.variantId,
-          quantity: i.quantity,
-        })),
-        couponCode: coupon?.code,
-        paymentMethod,
-      };
+      if (paymentMethod === 'ONLINE') {
+        // 1. Ensure Razorpay checkout script is loaded
+        const isLoaded = await loadRazorpayScript();
+        if (!isLoaded) {
+          setError('Could not connect to Razorpay payment gateway. Please check your network connection.');
+          setIsProcessing(false);
+          return;
+        }
 
-      const res = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderPayload),
-      });
+        // 2. Create Razorpay Order on server
+        const rzpOrderRes = await fetch('/api/razorpay/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: totalAmount,
+            receipt: `rcpt_${Date.now()}`,
+          }),
+        });
 
-      const data = await res.json();
+        const rzpData = await rzpOrderRes.json();
+        if (!rzpData.success) {
+          setError(rzpData.error || 'Failed to initialize Razorpay payment. Please try again.');
+          setIsProcessing(false);
+          return;
+        }
 
-      if (data.success && data.order) {
-        clearCart();
-        router.push(`/order-success/${data.order.orderNumber}?trackingCode=${data.order.trackingCode}`);
+        // 3. Launch Razorpay modal
+        const options = {
+          key: rzpData.key,
+          amount: rzpData.amount,
+          currency: rzpData.currency || 'INR',
+          name: 'Vasantham Group',
+          description: 'Ethnic Wear & Heritage Silks',
+          image: '/logo.png',
+          order_id: rzpData.orderId,
+          handler: async function (response: any) {
+            try {
+              // 4. Send verified Razorpay details to complete order
+              const completePayload = {
+                ...baseOrderPayload,
+                paymentMethod: 'ONLINE',
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+              };
+
+              const res = await fetch('/api/orders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(completePayload),
+              });
+
+              const data = await res.json();
+              if (data.success && data.order) {
+                clearCart();
+                router.push(`/order-success/${data.order.orderNumber}?trackingCode=${data.order.trackingCode}`);
+              } else {
+                setError(data.error || 'Payment succeeded but order confirmation encountered an issue. Please contact support.');
+                setIsProcessing(false);
+              }
+            } catch (err: any) {
+              setError(err.message || 'An error occurred while confirming your order.');
+              setIsProcessing(false);
+            }
+          },
+          prefill: {
+            name: customerName.trim(),
+            email: customerEmail.trim() || 'customer@vasantham.com',
+            contact: customerPhone.trim(),
+          },
+          theme: {
+            color: '#7E121D', // Rich Crimson
+          },
+          modal: {
+            ondismiss: function () {
+              setIsProcessing(false);
+            },
+          },
+        };
+
+        const rzp = new (window as any).Razorpay(options);
+        rzp.on('payment.failed', function (resp: any) {
+          setError(resp.error?.description || 'Payment was unsuccessful or cancelled.');
+          setIsProcessing(false);
+        });
+        rzp.open();
       } else {
-        setError(data.error || 'Failed to place order. Please try again.');
-        setIsProcessing(false);
+        // COD or DEMO_TEST flow
+        const orderPayload = {
+          ...baseOrderPayload,
+          paymentMethod,
+        };
+
+        const res = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderPayload),
+        });
+
+        const data = await res.json();
+
+        if (data.success && data.order) {
+          clearCart();
+          router.push(`/order-success/${data.order.orderNumber}?trackingCode=${data.order.trackingCode}`);
+        } else {
+          setError(data.error || 'Failed to place order. Please try again.');
+          setIsProcessing(false);
+        }
       }
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred during checkout.');
@@ -184,17 +367,116 @@ export default function CheckoutPage() {
               </div>
 
               <div>
-                <label className="block text-neutral-700 dark:text-neutral-300 font-semibold mb-1">
-                  Phone Number (WhatsApp for Tracking updates) *
-                </label>
-                <input
-                  type="tel"
-                  required
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="e.g. +91 98950 11223"
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:ring-1 focus:ring-crimson-600 focus:outline-none"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-neutral-700 dark:text-neutral-300 font-semibold">
+                    Phone Number (WhatsApp for Tracking updates) *
+                  </label>
+                  {phoneVerified && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                      Verified
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="tel"
+                    required
+                    value={customerPhone}
+                    onChange={(e) => {
+                      setCustomerPhone(e.target.value);
+                      setPhoneVerified(false);
+                      setOtpSent(false);
+                      setOtpValue('');
+                      setVerifyError('');
+                    }}
+                    placeholder="e.g. +91 98950 11223"
+                    className="flex-1 min-w-0 px-3.5 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:ring-1 focus:ring-crimson-600 focus:outline-none"
+                  />
+
+                  {paymentMethod === 'COD' && !phoneVerified && !otpSent && (
+                    <button
+                      type="button"
+                      disabled={otpLoading || !customerPhone.trim()}
+                      onClick={handleSendOtp}
+                      className="px-3 py-2 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-medium rounded-lg text-xs transition disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap shrink-0"
+                    >
+                      {otpLoading ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Sending...</span>
+                        </>
+                      ) : (
+                        <span>Verify via WhatsApp</span>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                {/* Inline OTP verification block when OTP is sent */}
+                {paymentMethod === 'COD' && !phoneVerified && otpSent && (
+                  <div className="mt-2.5 p-3 bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700 rounded-lg space-y-2">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-neutral-600 dark:text-neutral-300 font-medium">
+                        Enter 4-digit WhatsApp OTP
+                      </span>
+                      {resendTimer > 0 ? (
+                        <span className="text-neutral-400">Resend in {resendTimer}s</span>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={otpLoading}
+                          onClick={handleSendOtp}
+                          className="text-green-600 dark:text-green-400 font-semibold hover:underline"
+                        >
+                          Resend OTP
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        maxLength={4}
+                        value={otpValue}
+                        onChange={(e) => {
+                          setOtpValue(e.target.value.replace(/\D/g, '').slice(0, 4));
+                          if (verifyError) setVerifyError('');
+                        }}
+                        placeholder="••••"
+                        className="w-24 px-3 py-2 text-center tracking-widest text-sm font-bold rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:ring-1 focus:ring-green-600 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        disabled={otpLoading || otpValue.length < 4}
+                        onClick={handleVerifyOtp}
+                        className="px-4 py-2 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-medium rounded-lg text-xs transition disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-sm"
+                      >
+                        {otpLoading ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Verifying...</span>
+                          </>
+                        ) : (
+                          <span>Verify</span>
+                        )}
+                      </button>
+                    </div>
+
+                    {verifyError && (
+                      <p className="text-[11px] text-red-600 dark:text-red-400 font-medium">
+                        {verifyError}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {paymentMethod === 'COD' && !phoneVerified && !otpSent && verifyError && (
+                  <p className="mt-1 text-[11px] text-red-600 dark:text-red-400 font-medium">
+                    {verifyError}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -384,13 +666,18 @@ export default function CheckoutPage() {
                   onChange={() => setPaymentMethod('ONLINE')}
                   className="mt-0.5 text-crimson-700 focus:ring-crimson-600"
                 />
-                <div>
-                  <div className="font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-crimson-700 dark:text-gold-400" />
-                    <span>Instant Online Payment / UPI / NetBanking</span>
+                <div className="flex-1">
+                  <div className="font-bold text-neutral-900 dark:text-neutral-100 flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-crimson-700 dark:text-gold-400" />
+                      Razorpay Online Payment (UPI, Cards, NetBanking)
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-semibold uppercase tracking-wider">
+                      Secure
+                    </span>
                   </div>
                   <p className="text-[11px] text-neutral-500 mt-0.5">
-                    Simulated secure payment gateway (Cards, GooglePay, PhonePe, Paytm).
+                    Instant secure checkout with Google Pay, PhonePe, Paytm, Cards & NetBanking via Razorpay.
                   </p>
                 </div>
               </label>
@@ -460,7 +747,11 @@ export default function CheckoutPage() {
               disabled={isProcessing}
               className="w-full py-4 px-4 bg-gradient-to-r from-crimson-800 to-crimson-900 hover:from-crimson-900 hover:to-crimson-950 text-gold-300 font-bold rounded-xl text-sm shadow-xl flex items-center justify-center gap-2 disabled:opacity-50 transition"
             >
-              {isProcessing ? 'Processing Order...' : `Confirm & Place Order (${formatPrice(totalAmount)})`}
+              {isProcessing
+                ? 'Processing...'
+                : paymentMethod === 'ONLINE'
+                ? `Pay Online with Razorpay (${formatPrice(totalAmount)})`
+                : `Confirm & Place Order (${formatPrice(totalAmount)})`}
             </button>
 
             <div className="flex items-center justify-center gap-2 text-[11px] text-neutral-400">

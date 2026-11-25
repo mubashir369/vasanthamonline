@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Layers, Plus, Trash2, Edit2, Save, X, Image as ImageIcon } from 'lucide-react';
+import ImageUploader from '@/components/admin/ImageUploader';
 
 export default function AdminCategoriesPage() {
   const [categories, setCategories] = useState<any[]>([]);
@@ -170,13 +171,12 @@ export default function AdminCategoriesPage() {
           </div>
 
           <div>
-            <label className="block font-semibold mb-1">Cover Image URL</label>
-            <input
-              type="text"
-              value={image}
-              onChange={(e) => setImage(e.target.value)}
-              placeholder="https://images.unsplash.com/..."
-              className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+            <ImageUploader
+              label="Cover Image"
+              multiple={false}
+              maxFiles={1}
+              images={image ? [image] : []}
+              onImagesChange={(imgs) => setImage(imgs[0] || '')}
             />
           </div>
 

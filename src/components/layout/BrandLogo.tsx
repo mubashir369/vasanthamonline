@@ -12,14 +12,18 @@ export default function BrandLogo({
   storeName = 'Vasantham Group',
   tagline = 'Where elegance is woven with tradition.',
   className = '',
-  logoUrl,
+  logoUrl = '/logo.png',
 }: BrandLogoProps) {
+  const [imgError, setImgError] = React.useState(false);
+  const effectiveLogo = logoUrl || '/logo.png';
+
   return (
     <Link href="/" className={`flex items-center gap-3 group ${className}`}>
-      {logoUrl ? (
+      {effectiveLogo && !imgError ? (
         <img
-          src={logoUrl}
+          src={effectiveLogo}
           alt={storeName}
+          onError={() => setImgError(true)}
           className="h-10 w-10 object-contain rounded-md"
         />
       ) : (

@@ -165,7 +165,7 @@ export default function AdminOrdersPage() {
 
                     <td className="py-3.5 px-4">
                       <span className="font-semibold text-neutral-800 dark:text-neutral-200">
-                        {ord.paymentMethod}
+                        {ord.paymentMethod === 'ONLINE' ? 'Razorpay' : ord.paymentMethod}
                       </span>
                       <span
                         className={`block text-[10px] uppercase font-bold ${
@@ -174,6 +174,14 @@ export default function AdminOrdersPage() {
                       >
                         {ord.paymentStatus}
                       </span>
+                      {ord.razorpayPaymentId && (
+                        <span
+                          className="block text-[10px] font-mono text-neutral-400 truncate max-w-[110px]"
+                          title={ord.razorpayPaymentId}
+                        >
+                          {ord.razorpayPaymentId}
+                        </span>
+                      )}
                     </td>
 
                     <td className="py-3.5 px-4">

@@ -5,8 +5,10 @@ export interface IStoreSettings extends Document {
   tagline: string;
   address: string;
   contactPhone: string;
+  whatsappPhone?: string;
   contactEmail: string;
   logoUrl?: string;
+  instagramUrl?: string;
   primaryColor: string;
   secondaryColor: string;
   aboutText: string;
@@ -49,9 +51,14 @@ const StoreSettingsSchema = new Schema<IStoreSettings>(
       type: String,
       default: 'OPP. MY G Future, Main road Mannarkkad, PALAKKAD, Kerala - 678582',
     },
-    contactPhone: { type: String, default: '+91 94471 23456' },
+    contactPhone: { type: String, default: '+91 73061 60066' },
+    whatsappPhone: { type: String, default: '+91 73061 60066' },
     contactEmail: { type: String, default: 'info@vasanthamgroup.com' },
-    logoUrl: { type: String, default: '' },
+    logoUrl: { type: String, default: '/logo.png' },
+    instagramUrl: {
+      type: String,
+      default: 'https://www.instagram.com/vasanthamonline?cplk=MWZqM21vdTVsZWk0aA==',
+    },
     primaryColor: { type: String, default: '#7E121D' }, // Rich Heritage Crimson
     secondaryColor: { type: String, default: '#D4AF37' }, // Antique Gold
     aboutText: {

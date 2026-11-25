@@ -43,8 +43,8 @@ export default function Header({ initialSettings }: HeaderProps) {
       storeName: 'Vasantham Group',
       tagline: 'Where elegance is woven with tradition.',
       address: 'OPP. MY G Future, Main road Mannarkkad, PALAKKAD',
-      contactPhone: '+91 94471 23456',
-      logoUrl: '',
+      contactPhone: '+91 73061 60066',
+      logoUrl: '/logo.png',
     }
   );
 
@@ -100,7 +100,7 @@ export default function Header({ initialSettings }: HeaderProps) {
             </Link>
             <span>•</span>
             <Link href="/contact" className="hover:text-gold-200">
-              Contact: {settings.contactPhone}
+              Call / WhatsApp: {settings.contactPhone || '+91 73061 60066'}
             </Link>
           </div>
         </div>

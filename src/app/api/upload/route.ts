@@ -20,6 +20,8 @@ if (isCloudinaryConfigured) {
   });
 }
 
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
 export async function POST(req: NextRequest) {
   try {
     const user = getUserFromRequest(req);
@@ -33,6 +35,9 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const files = formData.getAll('files') as File[];
     const singleFile = formData.get('file') as File | null;
+
+    // Optional folder parameter for organizing uploads
+    const folder = (formData.get('folder') as string) || 'vasantham/products';
 
     const filesToUpload: File[] = [];
     if (singleFile) filesToUpload.push(singleFile);
@@ -51,6 +56,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Validate file sizes
+    for (const file of filesToUpload) {
+      if (file.size > MAX_FILE_SIZE) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `File "${file.name}" exceeds maximum size of 10MB`,
+          },
+          { status: 400 }
+        );
+      }
+
+      // Check file type
+      if (file.type && !file.type.startsWith('image/')) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `File "${file.name}" is not a supported image format`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const uploadedUrls: string[] = [];
 
     for (const file of filesToUpload) {
@@ -58,18 +87,22 @@ export async function POST(req: NextRequest) {
       const buffer = Buffer.from(bytes);
 
       if (isCloudinaryConfigured) {
-        // Upload directly to Cloudinary
+        // Upload to Cloudinary with premium compression transformations
         const base64Data = buffer.toString('base64');
         const dataUri = `data:${file.type || 'image/webp'};base64,${base64Data}`;
 
         const uploadResult = await cloudinary.uploader.upload(dataUri, {
-          folder: 'vasantham/products',
+          folder,
           format: 'webp',
           resource_type: 'image',
           transformation: [
-            { quality: 'auto:good' },
-            { fetch_format: 'webp' }
-          ]
+            {
+              width: 2048,
+              crop: 'limit',
+              quality: 'auto:best',
+              fetch_format: 'webp',
+            },
+          ],
         });
 
         uploadedUrls.push(uploadResult.secure_url);

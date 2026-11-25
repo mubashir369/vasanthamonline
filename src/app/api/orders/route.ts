@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
+import crypto from 'crypto';
 import connectDB from '@/lib/db';
 import Order from '@/lib/models/Order';
 import ProductVariant from '@/lib/models/ProductVariant';
@@ -7,7 +8,7 @@ import Product from '@/lib/models/Product';
 import Coupon from '@/lib/models/Coupon';
 import StoreSettings from '@/lib/models/StoreSettings';
 import { getUserFromRequest } from '@/lib/auth';
-import { generateOrderNumber, generateTrackingCode, calculateDeliveryFee } from '@/lib/utils';
+import { generateOrderNumber, generateTrackingCode, calculateDeliveryFee } from '@/lib/utils.server';
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,6 +23,9 @@ export async function POST(req: NextRequest) {
       items,
       couponCode,
       paymentMethod,
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
     } = body;
 
     if (!customerInfo || !customerInfo.name || !customerInfo.phone) {
@@ -119,9 +123,50 @@ export async function POST(req: NextRequest) {
 
     const totalAmount = subtotal - discountAmount + deliveryFee;
 
-    // 4. Determine payment status
-    const isOnlineOrDemo = paymentMethod === 'ONLINE' || paymentMethod === 'DEMO_TEST';
-    const paymentStatus = isOnlineOrDemo ? 'PAID' : 'PENDING';
+    // 4. Verify Online Payment if applicable
+    let finalPaymentStatus: 'PENDING' | 'PAID' = 'PENDING';
+    let finalOrderStatus: 'PENDING' | 'CONFIRMED' = 'PENDING';
+    let paymentHistoryNote =
+      deliveryType === 'STORE_PICKUP'
+        ? 'Order placed. Customer selected Store Pickup at Mannarkkad.'
+        : 'Order placed successfully and queued for fulfillment.';
+
+    if (paymentMethod === 'ONLINE') {
+      if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+        return NextResponse.json(
+          { success: false, error: 'Online payment details (order_id, payment_id, signature) are required.' },
+          { status: 400 }
+        );
+      }
+
+      const secret = process.env.RAZORPAY_KEY_SECRET;
+      if (!secret) {
+        return NextResponse.json(
+          { success: false, error: 'Server Razorpay configuration error.' },
+          { status: 500 }
+        );
+      }
+
+      const expectedSignature = crypto
+        .createHmac('sha256', secret)
+        .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+        .digest('hex');
+
+      if (expectedSignature !== razorpaySignature) {
+        return NextResponse.json(
+          { success: false, error: 'Razorpay payment signature verification failed.' },
+          { status: 400 }
+        );
+      }
+
+      finalPaymentStatus = 'PAID';
+      finalOrderStatus = 'CONFIRMED';
+      paymentHistoryNote = `Payment verified via Razorpay (Payment ID: ${razorpayPaymentId}). Order confirmed.`;
+    } else if (paymentMethod === 'DEMO_TEST') {
+      finalPaymentStatus = 'PAID';
+      finalOrderStatus = 'CONFIRMED';
+      paymentHistoryNote = 'Test payment simulated successfully. Order confirmed.';
+    }
 
     const orderNumber = generateOrderNumber();
     const trackingCode = generateTrackingCode();
@@ -172,16 +217,16 @@ export async function POST(req: NextRequest) {
       deliveryFee,
       totalAmount,
       paymentMethod: paymentMethod || 'COD',
-      paymentStatus,
-      orderStatus: 'PENDING',
+      paymentStatus: finalPaymentStatus,
+      razorpayOrderId: razorpayOrderId || undefined,
+      razorpayPaymentId: razorpayPaymentId || undefined,
+      razorpaySignature: razorpaySignature || undefined,
+      orderStatus: finalOrderStatus,
       statusHistory: [
         {
-          status: 'PENDING',
+          status: finalOrderStatus,
           timestamp: new Date(),
-          note:
-            deliveryType === 'STORE_PICKUP'
-              ? 'Order placed. Customer selected Store Pickup at Mannarkkad.'
-              : 'Order placed successfully and queued for fulfillment.',
+          note: paymentHistoryNote,
         },
       ],
     });

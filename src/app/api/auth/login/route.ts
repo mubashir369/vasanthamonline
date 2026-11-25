@@ -23,6 +23,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!user.passwordHash) {
+      return NextResponse.json(
+        { success: false, error: 'This account uses WhatsApp login. Please use the WhatsApp OTP tab.' },
+        { status: 401 }
+      );
+    }
+
     const isValid = await comparePassword(password, user.passwordHash);
     if (!isValid) {
       return NextResponse.json(
@@ -33,7 +40,7 @@ export async function POST(req: NextRequest) {
 
     const payload = {
       userId: user._id.toString(),
-      email: user.email,
+      email: user.email || '',
       role: user.role,
       name: user.name,
     };

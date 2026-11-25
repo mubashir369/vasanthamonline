@@ -1,7 +1,18 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/vasantham';
+import fs from 'fs';
+import path from 'path';
+
+let envUri = process.env.MONGODB_URI;
+if (fs.existsSync('.env.local')) {
+  const content = fs.readFileSync('.env.local', 'utf-8');
+  const match = content.match(/MONGODB_URI\s*=\s*([^\r\n]+)/);
+  if (match) {
+    envUri = match[1].trim();
+  }
+}
+const MONGODB_URI = envUri || 'mongodb://127.0.0.1:27017/vasantham_test';
 
 // Schemas
 const UserSchema = new mongoose.Schema(

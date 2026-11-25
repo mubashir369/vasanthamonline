@@ -18,6 +18,8 @@ interface AuthContextType {
   register: (name: string, email: string, password: string, phone?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  sendOtp: (phone: string, purpose?: string) => Promise<{ success: boolean; error?: string; message?: string }>;
+  verifyOtp: (phone: string, otp: string, purpose?: string) => Promise<{ success: boolean; error?: string; verified?: boolean }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -92,8 +94,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const sendOtp = async (phone: string, purpose: string = 'LOGIN') => {
+    try {
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, purpose }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        return { success: true, message: data.message };
+      }
+      return { success: false, error: data.error || 'Failed to send OTP' };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Failed to send OTP' };
+    }
+  };
+
+  const verifyOtp = async (phone: string, otp: string, purpose: string = 'LOGIN') => {
+    try {
+      const res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, otp, purpose }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        // For LOGIN purpose, server sets cookie and returns user
+        if (purpose === 'LOGIN' && data.user) {
+          setUser(data.user);
+        }
+        return { success: true, verified: data.verified };
+      }
+      return { success: false, error: data.error || 'Verification failed' };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Verification error' };
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, logout, refreshUser, sendOtp, verifyOtp }}>
       {children}
     </AuthContext.Provider>
   );

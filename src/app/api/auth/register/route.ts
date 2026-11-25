@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
     const payload = {
       userId: user._id.toString(),
-      email: user.email,
+      email: user.email || '',
       role: user.role,
       name: user.name,
     };

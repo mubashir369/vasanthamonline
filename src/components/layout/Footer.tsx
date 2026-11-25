@@ -3,15 +3,17 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import BrandLogo from './BrandLogo';
-import { MapPin, Phone, Mail, Clock, ShieldCheck, Heart } from 'lucide-react';
+import { MapPin, Phone, Mail, Clock, ShieldCheck, Heart, Instagram, MessageCircle } from 'lucide-react';
 
 export default function Footer() {
   const [settings, setSettings] = useState({
     storeName: 'Vasantham Group',
     tagline: 'Where elegance is woven with tradition.',
     address: 'OPP. MY G Future, Main road Mannarkkad, PALAKKAD, Kerala - 678582',
-    contactPhone: '+91 94471 23456',
+    contactPhone: '+91 73061 60066',
     contactEmail: 'info@vasanthamgroup.com',
+    logoUrl: '/logo.png',
+    instagramUrl: 'https://www.instagram.com/vasanthamonline?cplk=MWZqM21vdTVsZWk0aA==',
     aboutText:
       'Welcome to Vasantham Group — Malabar’s largest textile and fashion network, where tradition meets modern elegance. For generations, Vasantham has been a trusted name in the world of textiles in Palakkad.',
   });
@@ -78,18 +80,34 @@ export default function Footer() {
             <BrandLogo
               storeName={settings.storeName}
               tagline={settings.tagline}
+              logoUrl={settings.logoUrl || '/logo.png'}
               className="brightness-110"
             />
             <p className="text-xs text-neutral-400 leading-relaxed line-clamp-4">
               {settings.aboutText}
             </p>
-            <div className="pt-2">
+            <div className="pt-2 flex flex-col gap-2.5">
               <Link
                 href="/about"
                 className="text-xs font-semibold text-gold-400 hover:text-gold-300 underline"
               >
                 Read Our Heritage Story &rarr;
               </Link>
+              {settings.instagramUrl && (
+                <div>
+                  <a
+                    href={settings.instagramUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-neutral-900 border border-neutral-700/80 hover:border-gold-400/60 text-neutral-200 hover:text-gold-300 text-xs font-medium transition shadow-sm group"
+                  >
+                    <span className="p-1 rounded-md bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 text-white flex items-center justify-center">
+                      <Instagram className="w-3.5 h-3.5" />
+                    </span>
+                    <span>Follow @vasanthamonline</span>
+                  </a>
+                </div>
+              )}
             </div>
           </div>
 
@@ -177,14 +195,25 @@ export default function Footer() {
             </div>
             <div className="flex items-center gap-2.5 text-xs text-neutral-400">
               <Phone className="w-4 h-4 text-gold-400 flex-shrink-0" />
-              <a href={`tel:${settings.contactPhone}`} className="hover:text-gold-300">
-                {settings.contactPhone}
+              <a href="tel:+917306160066" className="hover:text-gold-300">
+                Call: +91 73061 60066
+              </a>
+            </div>
+            <div className="flex items-center gap-2.5 text-xs text-neutral-400">
+              <MessageCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <a
+                href="https://wa.me/917306160066"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-emerald-300 text-emerald-400/90 font-medium"
+              >
+                WhatsApp: +91 73061 60066
               </a>
             </div>
             <div className="flex items-center gap-2.5 text-xs text-neutral-400">
               <Mail className="w-4 h-4 text-gold-400 flex-shrink-0" />
-              <a href={`mailto:${settings.contactEmail}`} className="hover:text-gold-300">
-                {settings.contactEmail}
+              <a href={`mailto:${settings.contactEmail || 'info@vasanthamgroup.com'}`} className="hover:text-gold-300">
+                {settings.contactEmail || 'info@vasanthamgroup.com'}
               </a>
             </div>
             <div className="flex items-center gap-2.5 text-xs text-neutral-400">

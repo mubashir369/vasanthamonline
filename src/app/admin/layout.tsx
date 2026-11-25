@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   Menu,
   X,
+  Image as ImageIcon,
 } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -55,6 +56,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: 'Categories', href: '/admin/categories', icon: Layers },
     { label: 'Coupons & Promos', href: '/admin/coupons', icon: Tag },
     { label: 'Review Moderation', href: '/admin/reviews', icon: Star },
+    { label: 'Media & Images', href: '/admin/media', icon: ImageIcon },
     { label: 'Store Settings', href: '/admin/settings', icon: Settings },
   ];
 

@@ -157,8 +157,16 @@ export default function OrderSuccessPage() {
                 Payment Info
               </span>
               <p className="font-medium text-neutral-800 dark:text-neutral-200">
-                Method: <strong>{order.paymentMethod}</strong> • Status: <strong className="text-emerald-600">{order.paymentStatus}</strong>
+                Method: <strong>{order.paymentMethod === 'ONLINE' ? 'Razorpay Online' : order.paymentMethod}</strong> • Status:{' '}
+                <strong className={order.paymentStatus === 'PAID' ? 'text-emerald-600' : 'text-amber-600'}>
+                  {order.paymentStatus}
+                </strong>
               </p>
+              {order.razorpayPaymentId && (
+                <p className="text-[11px] text-neutral-500 mt-0.5 font-mono">
+                  Txn ID: {order.razorpayPaymentId}
+                </p>
+              )}
             </div>
           </div>
 

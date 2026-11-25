@@ -9,6 +9,8 @@ import {
   Send,
   CheckCircle2,
   Store,
+  Instagram,
+  MessageCircle,
 } from 'lucide-react';
 
 export default function ContactPage() {
@@ -72,13 +74,35 @@ export default function ContactPage() {
                 </div>
                 <div>
                   <strong className="block text-neutral-900 dark:text-neutral-100 text-sm">
-                    Phone & WhatsApp
+                    Phone / Direct Call
                   </strong>
                   <a
-                    href="tel:+919447123456"
-                    className="text-neutral-600 dark:text-neutral-400 hover:text-crimson-700 dark:hover:text-gold-400 block mt-0.5"
+                    href="tel:+917306160066"
+                    className="text-neutral-700 dark:text-neutral-300 hover:text-crimson-700 dark:hover:text-gold-400 font-semibold block mt-0.5"
                   >
-                    +91 94471 23456
+                    +91 73061 60066
+                  </a>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
+                  <MessageCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <strong className="block text-neutral-900 dark:text-neutral-100 text-sm">
+                    WhatsApp Chat & Inquiries
+                  </strong>
+                  <a
+                    href="https://wa.me/917306160066"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-emerald-700 dark:text-emerald-400 font-semibold hover:underline flex items-center gap-1.5 mt-0.5"
+                  >
+                    <span>+91 73061 60066</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 uppercase font-bold tracking-wider">
+                      Chat Now
+                    </span>
                   </a>
                 </div>
               </div>
@@ -89,11 +113,11 @@ export default function ContactPage() {
                 </div>
                 <div>
                   <strong className="block text-neutral-900 dark:text-neutral-100 text-sm">
-                    Email Inquiries
+                    Official Email
                   </strong>
                   <a
                     href="mailto:info@vasanthamgroup.com"
-                    className="text-neutral-600 dark:text-neutral-400 hover:text-crimson-700 dark:hover:text-gold-400 block mt-0.5"
+                    className="text-neutral-700 dark:text-neutral-300 hover:text-crimson-700 dark:hover:text-gold-400 font-semibold block mt-0.5"
                   >
                     info@vasanthamgroup.com
                   </a>
@@ -111,6 +135,25 @@ export default function ContactPage() {
                   <p className="text-neutral-600 dark:text-neutral-400 mt-0.5">
                     Monday to Sunday: 9:30 AM – 8:30 PM (All 7 Days Open)
                   </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <Instagram className="w-5 h-5" />
+                </div>
+                <div>
+                  <strong className="block text-neutral-900 dark:text-neutral-100 text-sm">
+                    Instagram Official
+                  </strong>
+                  <a
+                    href="https://www.instagram.com/vasanthamonline?cplk=MWZqM21vdTVsZWk0aA=="
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-crimson-700 dark:text-gold-400 font-medium hover:underline block mt-0.5"
+                  >
+                    @vasanthamonline &rarr;
+                  </a>
                 </div>
               </div>
             </div>

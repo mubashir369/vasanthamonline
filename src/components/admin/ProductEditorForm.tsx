@@ -8,13 +8,10 @@ import {
   Save,
   ArrowLeft,
   Image as ImageIcon,
-  Upload,
-  X,
-  Loader2,
   Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
-import { convertToWebP } from '@/lib/imageUtils';
+import ImageUploader from '@/components/admin/ImageUploader';
 
 interface ProductEditorFormProps {
   initialData?: any;
@@ -35,9 +32,6 @@ export default function ProductEditorForm({ initialData, isEdit }: ProductEditor
       'Dry clean recommended for pure silk and zari handlooms. Store in muslin cloth.'
   );
   const [productImages, setProductImages] = useState<string[]>(initialData?.images || []);
-  const [manualImageUrl, setManualImageUrl] = useState('');
-  const [uploadingMain, setUploadingMain] = useState(false);
-  const [uploadingVariantIndex, setUploadingVariantIndex] = useState<number | null>(null);
 
   const [isFeatured, setIsFeatured] = useState(!!initialData?.isFeatured);
   const [isNewArrival, setIsNewArrival] = useState(!!initialData?.isNewArrival);
@@ -87,104 +81,13 @@ export default function ProductEditorForm({ initialData, isEdit }: ProductEditor
       .catch(() => {});
   }, [selectedCategory]);
 
-  // Main product image upload handler (converts to WebP then uploads)
-  const handleMainImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setUploadingMain(true);
-    setError('');
-
-    try {
-      const formData = new FormData();
-
-      // Convert all selected files to WebP format before uploading
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const webpFile = await convertToWebP(file);
-        formData.append('files', webpFile);
-      }
-
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (data.success && data.urls) {
-        setProductImages((prev) => [...prev, ...data.urls]);
-      } else {
-        setError(data.error || 'Failed to upload images');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Error uploading images');
-    } finally {
-      setUploadingMain(false);
-      e.target.value = '';
-    }
-  };
-
-  const handleAddManualImage = () => {
-    if (!manualImageUrl.trim()) return;
-    setProductImages((prev) => [...prev, manualImageUrl.trim()]);
-    setManualImageUrl('');
-  };
-
-  const handleRemoveMainImage = (index: number) => {
-    setProductImages((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  // Variant image upload handler (converts to WebP then uploads)
-  const handleVariantImageUpload = async (variantIndex: number, e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setUploadingVariantIndex(variantIndex);
-    setError('');
-
-    try {
-      const formData = new FormData();
-
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const webpFile = await convertToWebP(file);
-        formData.append('files', webpFile);
-      }
-
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (data.success && data.urls) {
-        setVariants((prev) => {
-          const updated = [...prev];
-          const currentImages = updated[variantIndex].images || [];
-          updated[variantIndex] = {
-            ...updated[variantIndex],
-            images: [...currentImages, ...data.urls],
-          };
-          return updated;
-        });
-      } else {
-        setError(data.error || 'Failed to upload variant images');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Error uploading variant images');
-    } finally {
-      setUploadingVariantIndex(null);
-      e.target.value = '';
-    }
-  };
-
-  const handleRemoveVariantImage = (variantIndex: number, imageIndex: number) => {
+  // Handle variant images change via ImageUploader
+  const handleVariantImagesChange = (variantIndex: number, newImages: string[]) => {
     setVariants((prev) => {
       const updated = [...prev];
-      const currentImages = updated[variantIndex].images || [];
       updated[variantIndex] = {
         ...updated[variantIndex],
-        images: currentImages.filter((_: any, i: number) => i !== imageIndex),
+        images: newImages,
       };
       return updated;
     });
@@ -437,85 +340,23 @@ export default function ProductEditorForm({ initialData, isEdit }: ProductEditor
           />
         </div>
 
-        {/* Main Product Images with Cloudinary WebP Upload */}
+        {/* Main Product Images — ImageUploader with Upload/URL tabs */}
         <div className="space-y-3 pt-2 border-t border-neutral-100 dark:border-neutral-800">
-          <div className="flex items-center justify-between">
-            <div>
-              <label className="block font-semibold text-neutral-700 dark:text-neutral-300">
-                Main Product Images (Auto-converted to WebP & Cloudinary)
-              </label>
-              <p className="text-[11px] text-neutral-500">
-                Upload multiple images. Images are automatically converted to optimized WebP format before uploading.
-              </p>
-            </div>
-
-            <label className="px-3 py-1.5 bg-neutral-900 dark:bg-neutral-800 hover:bg-neutral-800 text-white rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer transition">
-              {uploadingMain ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-gold-400" />
-                  <span>Converting & Uploading...</span>
-                </>
-              ) : (
-                <>
-                  <Upload className="w-3.5 h-3.5 text-gold-400" />
-                  <span>+ Upload Images</span>
-                </>
-              )}
-              <input
-                type="file"
-                multiple
-                accept="image/*"
-                disabled={uploadingMain}
-                onChange={handleMainImageUpload}
-                className="hidden"
-              />
+          <div>
+            <label className="block font-semibold text-neutral-700 dark:text-neutral-300">
+              Main Product Images (Auto-compressed & Cloudinary)
             </label>
+            <p className="text-[11px] text-neutral-500">
+              Upload or paste URLs. Images are automatically compressed to optimized WebP format.
+            </p>
           </div>
 
-          {/* Image Thumbnails Preview Grid */}
-          {productImages.length > 0 && (
-            <div className="flex flex-wrap gap-3 p-3 bg-neutral-50 dark:bg-neutral-800/40 rounded-xl border border-neutral-200 dark:border-neutral-700">
-              {productImages.map((url, idx) => (
-                <div
-                  key={idx}
-                  className="relative group w-20 h-24 rounded-lg overflow-hidden border border-neutral-300 dark:border-neutral-600 bg-neutral-100 flex-shrink-0"
-                >
-                  <img src={url} alt={`Product ${idx}`} className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveMainImage(idx)}
-                    className="absolute top-1 right-1 p-1 rounded-full bg-red-600 text-white opacity-80 hover:opacity-100 transition shadow"
-                    title="Remove image"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                  {idx === 0 && (
-                    <span className="absolute bottom-1 inset-x-1 bg-black/75 text-gold-300 text-[9px] font-bold text-center py-0.5 rounded">
-                      Primary
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Fallback / Manual Image URL input */}
-          <div className="flex gap-2 pt-1">
-            <input
-              type="text"
-              value={manualImageUrl}
-              onChange={(e) => setManualImageUrl(e.target.value)}
-              placeholder="Or paste image URL directly (https://...)"
-              className="flex-1 px-3 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-xs"
-            />
-            <button
-              type="button"
-              onClick={handleAddManualImage}
-              className="px-3 py-1.5 bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 rounded-lg font-semibold hover:bg-neutral-300 transition"
-            >
-              Add URL
-            </button>
-          </div>
+          <ImageUploader
+            multiple={true}
+            maxFiles={20}
+            images={productImages}
+            onImagesChange={setProductImages}
+          />
         </div>
 
         {/* Visibility Badges */}
@@ -697,57 +538,20 @@ export default function ProductEditorForm({ initialData, isEdit }: ProductEditor
                 </div>
               </div>
 
-              {/* Row 2: Dedicated Variant Images (Upload multiple & WebP) */}
-              <div className="border-t border-neutral-200 dark:border-neutral-700 pt-2.5 flex flex-wrap items-center gap-3">
-                <span className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 flex items-center gap-1">
+              {/* Row 2: Variant Images — ImageUploader (compact) */}
+              <div className="border-t border-neutral-200 dark:border-neutral-700 pt-2.5">
+                <span className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 flex items-center gap-1 mb-2">
                   <ImageIcon className="w-3.5 h-3.5 text-gold-500" />
                   Variant Photos ({v.images?.length || 0}):
                 </span>
 
-                {/* Upload button for this variant */}
-                <label className="px-2.5 py-1 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 hover:border-crimson-600 text-neutral-700 dark:text-neutral-300 rounded text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm transition">
-                  {uploadingVariantIndex === idx ? (
-                    <>
-                      <Loader2 className="w-3 h-3 animate-spin text-gold-400" />
-                      <span>Converting to WebP...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-3 h-3 text-crimson-700 dark:text-gold-400" />
-                      <span>+ Upload Photos</span>
-                    </>
-                  )}
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    disabled={uploadingVariantIndex === idx}
-                    onChange={(e) => handleVariantImageUpload(idx, e)}
-                    className="hidden"
-                  />
-                </label>
-
-                {/* Thumbnail list for this variant */}
-                {v.images && v.images.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    {v.images.map((imgUrl: string, imgIdx: number) => (
-                      <div
-                        key={imgIdx}
-                        className="relative group w-11 h-12 rounded overflow-hidden border border-neutral-300 dark:border-neutral-600 bg-neutral-100 flex-shrink-0"
-                      >
-                        <img src={imgUrl} alt="Variant" className="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveVariantImage(idx, imgIdx)}
-                          className="absolute top-0.5 right-0.5 p-0.5 bg-red-600 text-white rounded-full opacity-80 hover:opacity-100 transition"
-                          title="Remove photo"
-                        >
-                          <X className="w-2.5 h-2.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <ImageUploader
+                  multiple={true}
+                  maxFiles={10}
+                  images={v.images || []}
+                  onImagesChange={(newImages) => handleVariantImagesChange(idx, newImages)}
+                  compact={true}
+                />
               </div>
             </div>
           ))}

@@ -15,10 +15,11 @@ export interface IAddress {
 
 export interface IUser extends Document {
   name: string;
-  email: string;
-  passwordHash: string;
+  email?: string;
+  passwordHash?: string;
   role: 'SUPER_ADMIN' | 'ADMIN' | 'CUSTOMER';
   phone?: string;
+  authMethod: 'EMAIL' | 'WHATSAPP' | 'BOTH';
   addresses: IAddress[];
   createdAt: Date;
   updatedAt: Date;
@@ -39,15 +40,32 @@ const AddressSchema = new Schema<IAddress>({
 const UserSchema = new Schema<IUser>(
   {
     name: { type: String, required: true, trim: true },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
-    passwordHash: { type: String, required: true },
+    email: {
+      type: String,
+      unique: true,
+      sparse: true, // Allows multiple null values while keeping unique constraint for non-null
+      lowercase: true,
+      trim: true,
+      index: true,
+    },
+    passwordHash: { type: String }, // Optional for WhatsApp-only users
     role: {
       type: String,
       enum: ['SUPER_ADMIN', 'ADMIN', 'CUSTOMER'],
       default: 'CUSTOMER',
       index: true,
     },
-    phone: { type: String, trim: true },
+    phone: {
+      type: String,
+      trim: true,
+      sparse: true,
+      index: true,
+    },
+    authMethod: {
+      type: String,
+      enum: ['EMAIL', 'WHATSAPP', 'BOTH'],
+      default: 'EMAIL',
+    },
     addresses: [AddressSchema],
   },
   {

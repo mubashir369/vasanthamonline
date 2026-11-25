@@ -9,22 +9,21 @@ import {
   Store,
   Truck,
   Sparkles,
-  Upload,
-  Loader2,
   Image as ImageIcon,
   Tag,
   ExternalLink,
 } from 'lucide-react';
-import { convertToWebP } from '@/lib/imageUtils';
+import ImageUploader from '@/components/admin/ImageUploader';
 
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState({
     storeName: 'Vasantham Group',
     tagline: 'Where elegance is woven with tradition.',
     address: 'OPP. MY G Future, Main road Mannarkkad, PALAKKAD, Kerala - 678582',
-    contactPhone: '+91 94471 23456',
+    contactPhone: '+91 73061 60066',
     contactEmail: 'info@vasanthamgroup.com',
-    logoUrl: '',
+    logoUrl: '/logo.png',
+    instagramUrl: 'https://www.instagram.com/vasanthamonline?cplk=MWZqM21vdTVsZWk0aA==',
     primaryColor: '#7E121D',
     secondaryColor: '#D4AF37',
     aboutText: '',
@@ -62,7 +61,6 @@ export default function AdminSettingsPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploadingHero, setUploadingHero] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -80,39 +78,6 @@ export default function AdminSettingsPage() {
 
   const handleChange = (field: string, value: any) => {
     setSettings((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleHeroImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setUploadingHero(true);
-    setError('');
-
-    try {
-      const file = files[0];
-      const webpFile = await convertToWebP(file);
-      const formData = new FormData();
-      formData.append('file', webpFile);
-
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (data.success && (data.url || data.urls?.[0])) {
-        const uploadedUrl = data.url || data.urls[0];
-        handleChange('heroImage', uploadedUrl);
-      } else {
-        setError(data.error || 'Failed to upload hero image');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Error uploading hero image');
-    } finally {
-      setUploadingHero(false);
-      e.target.value = '';
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -233,62 +198,13 @@ export default function AdminSettingsPage() {
 
         {/* Hero Image with Cloudinary / WebP uploader */}
         <div className="border-t border-neutral-100 dark:border-neutral-800 pt-4 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
-              <label className="block font-semibold text-neutral-800 dark:text-neutral-200">
-                Hero Showcase Image (WebP Auto-Conversion & Cloudinary)
-              </label>
-              <p className="text-[11px] text-neutral-500">
-                Upload a portrait/banner photo or paste an external image URL.
-              </p>
-            </div>
-
-            <label className="px-3.5 py-1.5 bg-neutral-900 dark:bg-neutral-800 hover:bg-neutral-800 text-white rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer transition self-start sm:self-auto">
-              {uploadingHero ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-gold-400" />
-                  <span>Converting & Uploading...</span>
-                </>
-              ) : (
-                <>
-                  <Upload className="w-3.5 h-3.5 text-gold-400" />
-                  <span>+ Upload Hero Image</span>
-                </>
-              )}
-              <input
-                type="file"
-                accept="image/*"
-                disabled={uploadingHero}
-                onChange={handleHeroImageUpload}
-                className="hidden"
-              />
-            </label>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 items-start pt-1">
-            {settings.heroImage && (
-              <div className="w-24 h-32 rounded-xl overflow-hidden border border-neutral-300 dark:border-neutral-700 bg-neutral-100 flex-shrink-0 shadow-sm relative group">
-                <img
-                  src={settings.heroImage}
-                  alt="Hero Preview"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            )}
-
-            <div className="flex-1 w-full space-y-1">
-              <input
-                type="text"
-                value={settings.heroImage || ''}
-                onChange={(e) => handleChange('heroImage', e.target.value)}
-                placeholder="https://..."
-                className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-xs font-mono"
-              />
-              <span className="text-[10px] text-neutral-400">
-                Direct Image URL (Cloudinary or Unsplash)
-              </span>
-            </div>
-          </div>
+          <ImageUploader
+            label="Hero Showcase Image (Auto-compressed & Cloudinary)"
+            multiple={false}
+            maxFiles={1}
+            images={settings.heroImage ? [settings.heroImage] : []}
+            onImagesChange={(imgs) => handleChange('heroImage', imgs[0] || '')}
+          />
         </div>
 
         {/* Hero Image Overlay Card Details */}
@@ -570,17 +486,38 @@ export default function AdminSettingsPage() {
           />
         </div>
 
-        <div>
-          <label className="block font-semibold mb-1">
-            Custom Logo URL (Leave blank to use default Heritage Gold & Crimson Emblem)
-          </label>
-          <input
-            type="text"
-            value={settings.logoUrl || ''}
-            onChange={(e) => handleChange('logoUrl', e.target.value)}
-            placeholder="https://..."
-            className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block font-semibold mb-1">
+              Custom Logo URL or Path
+            </label>
+            <input
+              type="text"
+              value={settings.logoUrl || ''}
+              onChange={(e) => handleChange('logoUrl', e.target.value)}
+              placeholder="/logo.png or https://..."
+              className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+            />
+            <p className="text-[11px] text-neutral-500 mt-1">
+              Place your image in <code>public/logo.png</code> to use <code>/logo.png</code>.
+            </p>
+          </div>
+
+          <div>
+            <label className="block font-semibold mb-1">
+              Instagram Profile URL
+            </label>
+            <input
+              type="text"
+              value={(settings as any).instagramUrl || ''}
+              onChange={(e) => handleChange('instagramUrl', e.target.value)}
+              placeholder="https://www.instagram.com/vasanthamonline..."
+              className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+            />
+            <p className="text-[11px] text-neutral-500 mt-1">
+              Used in the website Footer and Contact channels.
+            </p>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4 pt-1">
