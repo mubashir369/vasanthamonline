@@ -20,10 +20,9 @@ import {
 
 export const revalidate = 60; // ISR cache for 60 seconds
 
-async function getHomeData() {
+async function loadHomeDocuments() {
   await connectDB();
-
-  const [settingsDoc, categories, products, variants] = await Promise.all([
+  return Promise.all([
     StoreSettings.findOne().lean(),
     // Every active category, in the admin's sort order
     Category.find({ isActive: true }).sort({ sortOrder: 1, name: 1 }).lean(),
@@ -31,6 +30,19 @@ async function getHomeData() {
     Product.find().sort({ createdAt: -1 }).lean(),
     ProductVariant.find().lean(),
   ]);
+}
+
+async function getHomeData() {
+  // If the database can't be reached (e.g. during a build on the host), render the
+  // page with the default store details and no products instead of failing the
+  // build. The page refreshes every 60 seconds once the database is reachable.
+  let docs: Awaited<ReturnType<typeof loadHomeDocuments>> = [null, [], [], []];
+  try {
+    docs = await loadHomeDocuments();
+  } catch (error: any) {
+    console.warn('[home] Could not load catalog, showing defaults:', error?.message);
+  }
+  const [settingsDoc, categories, products, variants] = docs;
 
   // Map variants to products
   const variantMap = new Map<string, any[]>();

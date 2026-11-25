@@ -16,8 +16,15 @@ import {
 export const revalidate = 60;
 
 async function getAboutData() {
-  await connectDB();
-  const settings = await StoreSettings.findOne().lean();
+  // If the database can't be reached (e.g. during a build on the host), show the
+  // default store details instead of failing; the page refreshes every 60s.
+  let settings: any = null;
+  try {
+    await connectDB();
+    settings = await StoreSettings.findOne().lean();
+  } catch (error: any) {
+    console.warn('[about] Could not load store settings, using defaults:', error?.message);
+  }
   return {
     settings: settings || {
       storeName: 'Vasantham Online',
