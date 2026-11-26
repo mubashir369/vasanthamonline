@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import connectDB from '@/lib/db';
+import { queryWithBuildFallback } from '@/lib/db';
 import Product from '@/lib/models/Product';
 import ProductVariant from '@/lib/models/ProductVariant';
 import Category from '@/lib/models/Category';
@@ -21,16 +21,19 @@ import {
 export const revalidate = 60; // ISR cache for 60 seconds
 
 async function getHomeData() {
-  await connectDB();
-
-  const [settingsDoc, categories, products, variants] = await Promise.all([
-    StoreSettings.findOne().lean(),
-    // Every active category, in the admin's sort order
-    Category.find({ isActive: true }).sort({ sortOrder: 1, name: 1 }).lean(),
-    // Newest first, so "New Arrivals" (and the other rows) show the latest designs
-    Product.find().sort({ createdAt: -1 }).lean(),
-    ProductVariant.find().lean(),
-  ]);
+  const [settingsDoc, categories, products, variants] = await queryWithBuildFallback(
+    'home page',
+    () =>
+      Promise.all([
+        StoreSettings.findOne().lean(),
+        // Every active category, in the admin's sort order
+        Category.find({ isActive: true }).sort({ sortOrder: 1, name: 1 }).lean(),
+        // Newest first, so "New Arrivals" (and the other rows) show the latest designs
+        Product.find().sort({ createdAt: -1 }).lean(),
+        ProductVariant.find().lean(),
+      ]),
+    [null, [], [], []]
+  );
 
   // Map variants to products
   const variantMap = new Map<string, any[]>();

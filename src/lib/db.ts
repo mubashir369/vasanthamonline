@@ -45,3 +45,32 @@ export async function connectDB() {
 }
 
 export default connectDB;
+
+/**
+ * Runs a database query for a page that Next.js prerenders at build time.
+ *
+ * If the database can't be reached while the site is being built (for example
+ * MONGODB_URI isn't available to the build yet), the page is rendered with
+ * `fallback` instead of failing the whole deploy. Because these pages use ISR,
+ * the real data replaces the fallback on the first revalidation after deploy.
+ * Outside the build the error is rethrown, so a request-time failure keeps the
+ * previously cached page instead of caching placeholder content.
+ */
+export async function queryWithBuildFallback<T>(
+  label: string,
+  query: () => Promise<T>,
+  fallback: NoInfer<T>
+): Promise<T> {
+  try {
+    await connectDB();
+    return await query();
+  } catch (error) {
+    if (process.env.NEXT_PHASE !== 'phase-production-build') throw error;
+    console.warn(
+      `[${label}] Database unavailable during build; prerendering with default content. ` +
+        'Check that MONGODB_URI is set for builds.',
+      error instanceof Error ? error.message : error
+    );
+    return fallback;
+  }
+}

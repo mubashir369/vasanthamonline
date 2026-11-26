@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import connectDB from '@/lib/db';
+import { queryWithBuildFallback } from '@/lib/db';
 import StoreSettings from '@/lib/models/StoreSettings';
 import {
   Sparkles,
@@ -16,8 +16,11 @@ import {
 export const revalidate = 60;
 
 async function getAboutData() {
-  await connectDB();
-  const settings = await StoreSettings.findOne().lean();
+  const settings = await queryWithBuildFallback(
+    'about page',
+    () => StoreSettings.findOne().lean(),
+    null
+  );
   return {
     settings: settings || {
       storeName: 'Vasantham Online',
